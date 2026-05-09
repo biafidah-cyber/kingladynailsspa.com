@@ -1,0 +1,1302 @@
+﻿"use client";
+import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
+import { signOut, useSession } from "next-auth/react";
+
+type Tab = "dashboard" | "generate" | "bulk" | "images" | "edit" | "analytics" | "leads";
+
+interface SavedPost {
+  slug: string;
+  title: string;
+  date: string;
+  category: string;
+  primaryKeyword: string;
+  wordCount: number;
+  publishDate?: string | null;
+}
+
+interface KeywordData {
+  keyword: string;
+  monthly_volume: number | null;
+  cpc: number | null;
+  competition: string;
+  related: string[];
+  serp?: SerpResult[];
+}
+
+interface SerpResult {
+  rank: number;
+  title: string;
+  url: string;
+  description?: string;
+}
+
+interface GeneratedPost {
+  title: string;
+  slug: string;
+  description: string;
+  html: string;
+  primaryKeyword: string;
+  tags: string[];
+  wordCount?: number;
+}
+
+interface BulkJob {
+  keyword: string;
+  status: "pending" | "running" | "done" | "error";
+  slug?: string;
+  error?: string;
+}
+
+interface LinkSuggestion {
+  anchorText: string;
+  slug: string;
+  targetTitle: string;
+  reason: string;
+}
+
+interface AnalyticsSummary {
+  pageViews: number;
+  sessions: number;
+  bounceRate: number;
+  avgDuration: number;
+  newUsers: number;
+}
+
+interface TopPage {
+  path: string;
+  views: number;
+  sessions: number;
+}
+
+interface EditState {
+  slug: string;
+  title: string;
+  description: string;
+  content: string;
+  publishDate: string;
+}
+
+interface Subscriber {
+  email: string;
+  name?: string;
+  subscribed_at?: string;
+}
+
+interface ContactMsg {
+  id?: string;
+  name: string;
+  email: string;
+  message: string;
+  submitted_at?: string;
+  read?: boolean;
+}
+
+interface CommentEntry {
+  id?: string;
+  post_slug: string;
+  author_name: string;
+  author_email: string;
+  body: string;
+  submitted_at?: string;
+  approved?: boolean;
+}
+
+interface SeoScore {
+  total: number;
+  wordCount: number;
+  hasKeywordInH1: boolean;
+  keywordDensity: number;
+  hasFaq: boolean;
+  hasExternalLinks: number;
+  hasInternalLinks: number;
+  hasImages: number;
+}
+
+function calcSeoScore(html: string, keyword: string): SeoScore {
+  const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const words = text.split(/\s+/);
+  const wordCount = words.length;
+  const kw = keyword.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const keywordMatches = (text.toLowerCase().match(new RegExp(kw, "g")) || []).length;
+  const keywordDensity = wordCount > 0 ? Math.round((keywordMatches / wordCount) * 1000) / 10 : 0;
+  const hasKeywordInH1 = new RegExp(`<h1[^>]*>[^<]*${kw}[^<]*<\/h1>`, "i").test(html);
+  const hasFaq = /frequently asked questions|<h2[^>]*>.*faq/i.test(html);
+  const hasExternalLinks = (html.match(/rel="nofollow/g) || []).length;
+  const hasInternalLinks = (html.match(/\[INTERNAL_LINK/g) || []).length;
+  const hasImages = (html.match(/<!-- IMAGE:/g) || []).length + (html.match(/<img/gi) || []).length;
+
+  let total = 0;
+  if (wordCount >= 1500) total += 20; else if (wordCount >= 1000) total += 10;
+  if (hasKeywordInH1) total += 15;
+  if (keywordDensity >= 1 && keywordDensity <= 2) total += 15; else if (keywordDensity > 0) total += 7;
+  if (hasFaq) total += 10;
+  if (hasExternalLinks >= 3) total += 10; else if (hasExternalLinks >= 1) total += 5;
+  if (hasInternalLinks >= 2) total += 10; else if (hasInternalLinks >= 1) total += 5;
+  if (hasImages >= 3) total += 10; else if (hasImages >= 1) total += 5;
+  if (wordCount >= 1500) total += 10;
+  return { total: Math.min(total, 100), wordCount, hasKeywordInH1, keywordDensity, hasFaq, hasExternalLinks, hasInternalLinks, hasImages };
+}
+
+function Metric({ label, value, color }: { label: string; value: string; color: string }) {
+  const map: Record<string, string> = {
+    blue: "bg-blue-50 text-blue-700 border-blue-200",
+    green: "bg-green-50 text-green-700 border-green-200",
+    orange: "bg-orange-50 text-orange-700 border-orange-200",
+    purple: "bg-purple-50 text-purple-700 border-purple-200",
+  };
+  return (
+    <div className={`rounded-xl border p-3 text-center ${map[color] ?? map.blue}`}>
+      <div className="text-lg font-bold">{value}</div>
+      <div className="text-xs mt-0.5 opacity-70">{label}</div>
+    </div>
+  );
+}
+
+function ScoreBar({ label, value, max, unit = "" }: { label: string; value: number; max: number; unit?: string }) {
+  const pct = Math.min(Math.round((value / max) * 100), 100);
+  const color = pct >= 80 ? "bg-green-500" : pct >= 50 ? "bg-yellow-500" : "bg-red-400";
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <span className="text-gray-500 w-36 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div className={`h-full ${color} transition-all duration-500`} style={{ width: `${pct}%` }} />
+      </div>
+      <span className="font-mono text-gray-700 w-12 text-right">{value}{unit}</span>
+    </div>
+  );
+}
+
+/** Returns Authorization header when NEXT_PUBLIC_ADMIN_SECRET is set in .env.local */
+function authHeaders(): Record<string, string> {
+  const secret = process.env.NEXT_PUBLIC_ADMIN_SECRET;
+  return secret ? { Authorization: `Bearer ${secret}` } : {};
+}
+
+export default function AdminPage() {
+  const { data: session } = useSession();
+  const [tab, setTab] = useState<Tab>("dashboard");
+
+  // Dashboard
+  const [savedPosts, setSavedPosts] = useState<SavedPost[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+
+  // Generate
+  const [keyword, setKeyword] = useState("");
+  const [businessCtx, setBusinessCtx] = useState("");
+  const [kwData, setKwData] = useState<KeywordData | null>(null);
+  const [post, setPost] = useState<GeneratedPost | null>(null);
+  const [seoScore, setSeoScore] = useState<SeoScore | null>(null);
+  const [loadingKw, setLoadingKw] = useState(false);
+  const [loadingPost, setLoadingPost] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
+  const [publishDate, setPublishDate] = useState("");
+
+  // Bulk
+  const [bulkKeywords, setBulkKeywords] = useState("");
+  const [bulkJobs, setBulkJobs] = useState<BulkJob[]>([]);
+  const [bulkRunning, setBulkRunning] = useState(false);
+
+  // Images
+  const [imgPrompt, setImgPrompt] = useState("");
+  const [imgStyle, setImgStyle] = useState("photorealistic professional photography");
+  const [imgUrl, setImgUrl] = useState("");
+  const [loadingImg, setLoadingImg] = useState(false);
+  const [imgMsg, setImgMsg] = useState("");
+
+  // Edit
+  const [editState, setEditState] = useState<EditState | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [editMsg, setEditMsg] = useState("");
+
+  // Internal links
+  const [linkSuggestions, setLinkSuggestions] = useState<LinkSuggestion[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
+  const [linksApplied, setLinksApplied] = useState(false);
+
+  // Analytics
+  const [analytics, setAnalytics] = useState<{ configured: boolean; summary?: AnalyticsSummary; topPages?: TopPage[]; error?: string; message?: string } | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Leads (subscribers + contacts + comments)
+  const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
+  const [contacts, setContacts] = useState<ContactMsg[]>([]);
+  const [comments, setComments] = useState<CommentEntry[]>([]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+  const [expandedContact, setExpandedContact] = useState<string | null>(null);
+
+  // â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const loadPosts = useCallback(async () => {
+    setLoadingPosts(true);
+    try {
+      const res = await fetch("/api/posts");
+      const data = await res.json();
+      setSavedPosts(data.posts ?? []);
+    } catch { setSavedPosts([]); }
+    finally { setLoadingPosts(false); }
+  }, []);
+
+  useEffect(() => { if (tab === "dashboard") loadPosts(); }, [tab, loadPosts]);
+
+  async function deletePost(slug: string) {
+    if (!confirm(`Delete post "${slug}"? This cannot be undone.`)) return;
+    await fetch(`/api/posts?slug=${encodeURIComponent(slug)}`, { method: "DELETE", headers: authHeaders() });
+    setSavedPosts(p => p.filter(x => x.slug !== slug));
+  }
+
+  // â”€â”€ Generate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function handleKwResearch() {
+    if (!keyword.trim()) return;
+    setLoadingKw(true); setKwData(null);
+    try {
+      const res = await fetch("/api/keyword-research", {
+        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ keyword }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setKwData(data);
+    } catch (e: unknown) {
+      setMessage(`âŒ KW error: ${(e as Error).message}`);
+    } finally { setLoadingKw(false); }
+  }
+
+  async function handleGenerate() {
+    if (!keyword.trim()) return;
+    setLoadingPost(true); setPost(null); setSeoScore(null); setMessage(""); setShowPreview(false);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ keyword, businessContext: businessCtx, kwData }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setPost(data);
+      setSeoScore(calcSeoScore(data.html, keyword));
+      setShowPreview(true);
+    } catch (e: unknown) {
+      setMessage(`âŒ ${(e as Error).message}`);
+    } finally { setLoadingPost(false); }
+  }
+
+  async function handleSave() {
+    if (!post) return;
+    setSaving(true); setMessage("");
+    try {
+      const res = await fetch("/api/save-post", {
+        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ ...post, publishDate }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const indexed = data.indexed ? " ðŸ“¡ IndexNow pinged." : "";
+      setMessage(`âœ… Saved! ${post.slug}.md${indexed}`);
+      setTimeout(() => {
+        setPost(null); setSeoScore(null); setShowPreview(false);
+        setKeyword(""); setKwData(null); setMessage("");
+      }, 4000);
+    } catch (e: unknown) {
+      setMessage(`âŒ ${(e as Error).message}`);
+    } finally { setSaving(false); }
+  }
+
+  // â”€â”€ Bulk generate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function runBulk() {
+    const kws = bulkKeywords.split("\n").map(k => k.trim()).filter(Boolean).slice(0, 20);
+    if (!kws.length) return;
+    const jobs: BulkJob[] = kws.map(k => ({ keyword: k, status: "pending" }));
+    setBulkJobs(jobs); setBulkRunning(true);
+    for (let i = 0; i < jobs.length; i++) {
+      setBulkJobs(prev => { const u = [...prev]; u[i] = { ...u[i], status: "running" }; return u; });
+      try {
+        const genRes = await fetch("/api/generate", {
+          method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ keyword: jobs[i].keyword }),
+        });
+        const gen = await genRes.json();
+        if (gen.error) throw new Error(gen.error);
+        const saveRes = await fetch("/api/save-post", {
+          method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(gen),
+        });
+        const save = await saveRes.json();
+        if (save.error) throw new Error(save.error);
+        setBulkJobs(prev => { const u = [...prev]; u[i] = { ...u[i], status: "done", slug: gen.slug }; return u; });
+      } catch (e: unknown) {
+        setBulkJobs(prev => { const u = [...prev]; u[i] = { ...u[i], status: "error", error: (e as Error).message }; return u; });
+      }
+      if (i < jobs.length - 1) await new Promise(r => setTimeout(r, 2500));
+    }
+    setBulkRunning(false);
+  }
+
+  // â”€â”€ Image generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  async function handleGenImg() {
+    if (!imgPrompt.trim()) return;
+    setLoadingImg(true); setImgUrl(""); setImgMsg("");
+    try {
+      const res = await fetch("/api/generate-image", {
+        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ prompt: imgPrompt, style: imgStyle }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setImgUrl(data.url);
+      setImgMsg("âœ… Done! Right-click â†’ Save As â†’ public/images/posts/");
+    } catch (e: unknown) {
+      setImgMsg(`âŒ ${(e as Error).message}`);
+    } finally { setLoadingImg(false); }
+  }
+
+
+  // -- Edit post ---------------------------------------------------------------
+  async function openEdit(slug: string) {
+    const res = await fetch(`/api/posts?slug=${encodeURIComponent(slug)}`, { headers: authHeaders() });
+    const data = await res.json();
+    if (data.error) { alert(data.error); return; }
+    setEditState({
+      slug,
+      title: data.frontmatter?.title ?? "",
+      description: data.frontmatter?.description ?? "",
+      content: data.content ?? "",
+      publishDate: data.frontmatter?.publishDate ?? "",
+    });
+    setEditMsg("");
+    setLinkSuggestions([]);
+    setLinksApplied(false);
+    setTab("edit");
+  }
+
+  async function handleEditSave() {
+    if (!editState) return;
+    setEditSaving(true); setEditMsg("");
+    try {
+      const res = await fetch("/api/edit-post", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify(editState),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setEditMsg(`\u2705 Saved! (${data.wordCount?.toLocaleString()} words)`);
+    } catch (e: unknown) {
+      setEditMsg(`\u274c ${(e as Error).message}`);
+    } finally { setEditSaving(false); }
+  }
+
+  // -- Internal link suggestions -----------------------------------------------
+  async function handleGetLinks() {
+    if (!editState?.content) return;
+    setLoadingLinks(true); setLinkSuggestions([]);
+    try {
+      const res = await fetch("/api/internal-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ html: editState.content, keyword: editState.title }),
+      });
+      const data = await res.json();
+      setLinkSuggestions(data.suggestions ?? []);
+    } catch (e: unknown) {
+      setEditMsg(`\u274c Links error: ${(e as Error).message}`);
+    } finally { setLoadingLinks(false); }
+  }
+
+  function applyLinks() {
+    if (!editState || linkSuggestions.length === 0) return;
+    let updated = editState.content;
+    for (const s of linkSuggestions) {
+      const escaped = s.anchorText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const re = new RegExp(escaped, "");
+      if (re.test(updated)) {
+        updated = updated.replace(re, `[${s.anchorText}](/blog/${s.slug})`);
+      }
+    }
+    setEditState({ ...editState, content: updated });
+    setLinksApplied(true);
+  }
+
+  // -- Analytics ---------------------------------------------------------------
+  const loadAnalytics = useCallback(async () => {
+    setLoadingAnalytics(true);
+    try {
+      const res = await fetch("/api/analytics", { headers: authHeaders() });
+      setAnalytics(await res.json());
+    } catch { setAnalytics({ configured: false, message: "Failed to fetch analytics." }); }
+    finally { setLoadingAnalytics(false); }
+  }, []);
+
+  useEffect(() => { if (tab === "analytics") loadAnalytics(); }, [tab, loadAnalytics]);
+
+  // -- Leads (subscribers + contacts) ----------------------------------------
+  const loadLeads = useCallback(async () => {
+    setLoadingLeads(true);
+    try {
+      const res = await fetch("/api/leads", { headers: authHeaders() });
+      const data = await res.json();
+      setSubscribers(data.subscribers ?? []);
+      setContacts(data.contacts ?? []);
+      setComments(data.comments ?? []);
+    } catch {
+      setSubscribers([]); setContacts([]);
+    } finally { setLoadingLeads(false); }
+  }, []);
+
+  useEffect(() => { if (tab === "leads") loadLeads(); }, [tab, loadLeads]);
+
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "dashboard", label: "\ud83d\udcca Dashboard" },
+    { id: "generate",  label: "\u2728 Generate Post" },
+    { id: "bulk",      label: "\u26a1 Bulk Generate" },
+    { id: "images",    label: "\ud83c\udfa8 AI Images" },
+    { id: "edit",      label: "\u270f\ufe0f Edit Post" },
+    { id: "analytics", label: "\ud83d\udcc8 Analytics" },
+    { id: "leads",     label: "\ud83d\udce5 Leads" },
+  ];
+
+  const doneCount = bulkJobs.filter(j => j.status === "done").length;
+  const errCount  = bulkJobs.filter(j => j.status === "error").length;
+  const bulkKwCount = bulkKeywords.split("\n").filter(Boolean).length;
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Top bar */}
+      <div className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xl">\u2699\ufe0f</span>
+          <span className="font-bold">Admin CMS</span>
+          <span className="text-gray-400 text-sm hidden md:block">AI Blog Manager</span>
+        </div>
+        <div className="flex items-center gap-4">
+          {session?.user?.name && (
+            <span className="text-gray-400 text-xs hidden md:block">Signed in as {session.user.name}</span>
+          )}
+          <button onClick={() => signOut({ callbackUrl: "/login" })}
+            className="text-gray-400 hover:text-white text-xs border border-gray-600 px-3 py-1 rounded-lg">
+            Sign out
+          </button>
+          <Link href="/" className="text-gray-300 hover:text-white text-sm">\u2190 View Site</Link>
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto p-6">
+        {/* Tab pills */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`px-5 py-2 rounded-full text-sm font-medium transition-all ${
+                tab === t.id ? "bg-pink-600 text-white shadow" : "bg-white text-gray-600 hover:bg-gray-100"
+              }`}>{t.label}</button>
+          ))}
+        </div>
+
+        {/* DASHBOARD */}
+        {tab === "dashboard" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                All Posts <span className="text-gray-400 font-normal text-base">({savedPosts.length})</span>
+              </h2>
+              <button onClick={() => setTab("generate")}
+                className="bg-pink-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-pink-700">
+                + New Post
+              </button>
+            </div>
+
+            {loadingPosts && <p className="text-gray-400 animate-pulse text-sm">Loading posts\u2026</p>}
+
+            {!loadingPosts && savedPosts.length === 0 && (
+              <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
+                <p className="text-gray-400 text-4xl mb-3">\ud83d\udcdd</p>
+                <p className="text-gray-500 mb-4">No blog posts yet.</p>
+                <button onClick={() => setTab("generate")}
+                  className="bg-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-pink-700">
+                  Generate your first post \u2192
+                </button>
+              </div>
+            )}
+
+            {!loadingPosts && savedPosts.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="grid grid-cols-5 text-xs font-semibold text-gray-500 uppercase tracking-wide p-4 bg-gray-50 border-b border-gray-100">
+                  <span className="col-span-2">Title / Slug</span>
+                  <span className="hidden md:block">Keyword</span>
+                  <span className="hidden md:block">Words / Date</span>
+                  <span className="text-right">Actions</span>
+                </div>
+                {savedPosts.map((p, i) => (
+                  <div key={p.slug}
+                    className={`grid grid-cols-5 items-center p-4 border-b border-gray-50 hover:bg-gray-50 ${
+                      i % 2 === 1 ? "bg-gray-50/40" : ""
+                    }`}>
+                    <div className="col-span-2 min-w-0 pr-4">
+                      <Link href={`/blog/${p.slug}`} target="_blank"
+                        className="font-medium text-gray-900 hover:text-pink-600 text-sm line-clamp-1">
+                        {p.title}
+                      </Link>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="text-xs text-gray-400 font-mono truncate">{p.slug}</span>
+                        {p.publishDate && new Date(p.publishDate) > new Date() && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full shrink-0">
+                            \ud83d\udd50 {p.publishDate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="hidden md:block">
+                      <span className="bg-blue-50 text-blue-700 text-xs px-2 py-0.5 rounded-full line-clamp-1">
+                        {p.primaryKeyword}
+                      </span>
+                    </div>
+                    <div className="hidden md:block text-right pr-4">
+                      <div className="text-xs font-semibold text-gray-700">{p.wordCount?.toLocaleString() ?? "\u2014"} w</div>
+                      <div className="text-xs text-gray-400">{p.date}</div>
+                    </div>
+                    <div className="flex items-center justify-end gap-2">
+                      <button onClick={() => openEdit(p.slug)}
+                        className="text-blue-500 hover:text-blue-700 text-xs px-2 py-1 rounded hover:bg-blue-50 shrink-0">
+                        Edit
+                      </button>
+                      <button onClick={() => deletePost(p.slug)}
+                        className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50 shrink-0">
+                        \u2715
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* GENERATE */}
+        {tab === "generate" && (
+          <div className="space-y-6">
+            {!showPreview ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Input */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
+                  <h2 className="font-bold text-gray-900">1. Keyword & Settings</h2>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">Primary Keyword</label>
+                    <input value={keyword} onChange={e => setKeyword(e.target.value)}
+                      placeholder="e.g. gel nails Las Vegas"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
+                      onKeyDown={e => e.key === "Enter" && handleKwResearch()}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">Business Context (optional)</label>
+                    <textarea value={businessCtx} onChange={e => setBusinessCtx(e.target.value)}
+                      placeholder="King Lady Nails & Spa, Las Vegas nail salon\u2026"
+                      rows={3}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-1">
+                      Schedule Publish Date <span className="text-gray-400 font-normal">(leave blank to publish now)</span>
+                    </label>
+                    <input type="date" value={publishDate} onChange={e => setPublishDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleKwResearch} disabled={loadingKw || !keyword.trim()}
+                      className="flex-1 bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm">
+                      {loadingKw ? "Checking\u2026" : "\ud83d\udd0d KW Data"}
+                    </button>
+                    <button onClick={handleGenerate} disabled={loadingPost || !keyword.trim()}
+                      className="flex-1 bg-pink-600 text-white font-bold py-2.5 rounded-lg hover:bg-pink-700 disabled:opacity-40 text-sm">
+                      {loadingPost ? "\u2728 Writing\u2026" : "\u2728 Generate"}
+                    </button>
+                  </div>
+                  {message && (
+                    <div className={`text-sm p-3 rounded-lg ${
+                      message.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                    }`}>{message}</div>
+                  )}
+                </div>
+
+                {/* KW Intelligence */}
+                <div className="bg-white rounded-2xl p-6 shadow-sm">
+                  <h2 className="font-bold text-gray-900 mb-4">2. Keyword Intelligence</h2>
+                  {!kwData && !loadingKw && <p className="text-gray-400 text-sm">Run KW Data first to see DataForSEO metrics</p>}
+                  {loadingKw && <p className="text-blue-500 text-sm animate-pulse">Fetching from DataForSEO\u2026</p>}
+                  {kwData && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-3">
+                        <Metric label="Monthly Vol" value={kwData.monthly_volume?.toLocaleString() ?? "\u2014"} color="blue" />
+                        <Metric label="CPC (USD)" value={kwData.cpc ? `$${kwData.cpc.toFixed(2)}` : "\u2014"} color="green" />
+                        <Metric label="Competition" value={kwData.competition || "\u2014"} color="orange" />
+                      </div>
+                      {kwData.related?.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 mb-2">Related \u2014 click to use</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {kwData.related.map(kw => (
+                              <button key={kw} onClick={() => setKeyword(kw)}
+                                className="bg-gray-100 hover:bg-pink-100 hover:text-pink-700 text-gray-600 text-xs px-2.5 py-1 rounded-full transition-colors">
+                                {kw}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {kwData.serp && kwData.serp.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-gray-500 mb-2">\ud83c\udfc6 Current Top Results</p>
+                          <div className="space-y-2">
+                            {kwData.serp.slice(0, 3).map(r => (
+                              <div key={r.rank} className="flex gap-2 text-xs p-2 bg-gray-50 rounded-lg">
+                                <span className="text-gray-400 font-mono w-4">#{r.rank}</span>
+                                <div className="min-w-0">
+                                  <div className="font-medium text-gray-800 truncate">{r.title}</div>
+                                  <div className="text-gray-400 truncate">{r.url}</div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              post && (
+                <div className="space-y-4">
+                  {/* Action bar */}
+                  <div className="bg-white rounded-2xl p-5 shadow-sm flex flex-wrap items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h2 className="font-bold text-gray-900 text-xl truncate">{post.title}</h2>
+                      <p className="text-gray-500 text-sm mt-1 line-clamp-2">{post.description}</p>
+                      {publishDate && (
+                        <p className="text-amber-600 text-xs mt-1">\ud83d\udd50 Scheduled: {publishDate}</p>
+                      )}
+                      <div className="flex gap-1.5 mt-2 flex-wrap">
+                        {post.tags?.slice(0, 5).map(t => (
+                          <span key={t} className="bg-pink-100 text-pink-700 text-xs px-2 py-0.5 rounded-full">{t}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={handleSave} disabled={saving}
+                        className="bg-green-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50">
+                        {saving ? "Saving\u2026" : "\ud83d\udcbe Save & Index"}
+                      </button>
+                      <button onClick={() => { setShowPreview(false); setPost(null); setSeoScore(null); }}
+                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">\u2190 Back</button>
+                    </div>
+                  </div>
+
+                  {message && (
+                    <div className={`text-sm p-3 rounded-lg ${
+                      message.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                    }`}>{message}</div>
+                  )}
+
+                  {/* SEO Score */}
+                  {seoScore && (
+                    <div className="bg-white rounded-2xl p-5 shadow-sm">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-bold text-gray-900">SEO Score</h3>
+                        <div className={`text-4xl font-black ${
+                          seoScore.total >= 80 ? "text-green-600" :
+                          seoScore.total >= 60 ? "text-yellow-600" : "text-red-500"
+                        }`}>{seoScore.total}<span className="text-sm font-normal text-gray-400">/100</span></div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2.5">
+                          <ScoreBar label="Word count" value={seoScore.wordCount} max={2000} />
+                          <ScoreBar label="Keyword density" value={seoScore.keywordDensity} max={3} unit="%" />
+                          <ScoreBar label="External links" value={seoScore.hasExternalLinks} max={3} />
+                          <ScoreBar label="Internal links" value={seoScore.hasInternalLinks} max={2} />
+                          <ScoreBar label="Image placeholders" value={seoScore.hasImages} max={3} />
+                        </div>
+                        <div className="space-y-2">
+                          {[
+                            { ok: seoScore.wordCount >= 1500, text: `${seoScore.wordCount.toLocaleString()} words${seoScore.wordCount >= 1500 ? " \u2705" : " \u26a0\ufe0f need 1500+"}` },
+                            { ok: seoScore.hasKeywordInH1, text: seoScore.hasKeywordInH1 ? "Keyword in H1 \u2705" : "Keyword missing from H1 \u26a0\ufe0f" },
+                            { ok: seoScore.keywordDensity >= 1 && seoScore.keywordDensity <= 2, text: `Density ${seoScore.keywordDensity}%${seoScore.keywordDensity >= 1 && seoScore.keywordDensity <= 2 ? " \u2705" : " \u26a0\ufe0f (target 1\u20132%)"}` },
+                            { ok: seoScore.hasFaq, text: seoScore.hasFaq ? "FAQ section \u2705" : "No FAQ section \u26a0\ufe0f" },
+                            { ok: seoScore.hasExternalLinks >= 3, text: `${seoScore.hasExternalLinks} external links${seoScore.hasExternalLinks >= 3 ? " \u2705" : " \u26a0\ufe0f need 3"}` },
+                          ].map((item, i) => (
+                            <div key={i} className={`text-xs px-3 py-2 rounded-lg ${
+                              item.ok ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
+                            }`}>{item.text}</div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Article preview */}
+                  <div className="bg-white rounded-2xl p-8 shadow-sm">
+                    <div className="text-xs text-gray-400 mb-4 font-mono">content/posts/<strong>{post.slug}</strong>.md</div>
+                    <div className="prose prose-lg max-w-none" dangerouslySetInnerHTML={{ __html: post.html }} />
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        )}
+
+        {/* BULK GENERATE */}
+        {tab === "bulk" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
+              <h2 className="font-bold text-gray-900">Bulk Post Generator</h2>
+              <p className="text-sm text-gray-500">
+                Enter up to 20 keywords (one per line). Each generates a full 1500+ word SEO article and saves automatically.
+              </p>
+              <textarea
+                value={bulkKeywords}
+                onChange={e => setBulkKeywords(e.target.value)}
+                placeholder={"gel nails Las Vegas\nacrylic nails Las Vegas\nnail art Las Vegas\nmanicure Henderson NV\npedicure Summerlin Las Vegas"}
+                rows={12}
+                disabled={bulkRunning}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none disabled:opacity-50 disabled:bg-gray-50"
+              />
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-400">
+                  {bulkKwCount} keywords \u00b7 \u2248${(bulkKwCount * 0.025).toFixed(2)} OpenAI cost
+                </span>
+                <button onClick={runBulk} disabled={bulkRunning || !bulkKeywords.trim()}
+                  className="bg-pink-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-pink-700 disabled:opacity-40">
+                  {bulkRunning ? `\u26a1 Running (${doneCount}/${bulkKwCount})\u2026` : "\u26a1 Generate All"}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-bold text-gray-900">Queue</h2>
+                {bulkJobs.length > 0 && !bulkRunning && (
+                  <button onClick={() => { setBulkJobs([]); setBulkKeywords(""); }}
+                    className="text-xs text-gray-400 hover:text-gray-600">Clear</button>
+                )}
+              </div>
+              {bulkJobs.length === 0 && (
+                <p className="text-gray-400 text-sm">Queue is empty. Enter keywords and click Generate All.</p>
+              )}
+              <div className="space-y-2 max-h-96 overflow-y-auto">
+                {bulkJobs.map((job, i) => (
+                  <div key={i} className={`flex items-center gap-3 p-3 rounded-xl text-sm ${
+                    job.status === "done" ? "bg-green-50" :
+                    job.status === "error" ? "bg-red-50" :
+                    job.status === "running" ? "bg-blue-50 animate-pulse" : "bg-gray-50"
+                  }`}>
+                    <span className="text-base">
+                      {job.status === "done" ? "\u2705" : job.status === "error" ? "\u274c" : job.status === "running" ? "\u23f3" : "\u23f8\ufe0f"}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-gray-900 truncate">{job.keyword}</div>
+                      {job.slug && <div className="text-xs text-green-600 font-mono">{job.slug}.md</div>}
+                      {job.error && <div className="text-xs text-red-600">{job.error}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {bulkJobs.length > 0 && !bulkRunning && (
+                <div className="mt-4 pt-4 border-t border-gray-100 flex gap-4 text-sm">
+                  <span className="text-green-600 font-semibold">\u2705 {doneCount} saved</span>
+                  {errCount > 0 && <span className="text-red-500">\u274c {errCount} errors</span>}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* AI IMAGES */}
+        {tab === "images" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="bg-white rounded-2xl p-6 shadow-sm space-y-4">
+              <div>
+                <h2 className="font-bold text-gray-900">DALL-E 3 Blog Images</h2>
+                <p className="text-sm text-gray-500 mt-1">Generate professional photos for blog posts. ~$0.04/image.</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Describe the image</label>
+                <textarea value={imgPrompt} onChange={e => setImgPrompt(e.target.value)}
+                  placeholder="A professional nail technician applying gel polish at a luxury Las Vegas nail salon, bright clean studio, pink and white decor, shallow depth of field"
+                  rows={5}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-700 block mb-1">Style</label>
+                <select value={imgStyle} onChange={e => setImgStyle(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none">
+                  <option value="photorealistic professional photography, Canon DSLR">Photorealistic (Recommended)</option>
+                  <option value="professional stock photography, clean white background">Stock Photo Style</option>
+                  <option value="bright and airy lifestyle photography">Lifestyle Photography</option>
+                  <option value="flat design illustration, minimal, colorful">Flat Illustration</option>
+                  <option value="watercolor illustration">Watercolor</option>
+                </select>
+              </div>
+              <button onClick={handleGenImg} disabled={loadingImg || !imgPrompt.trim()}
+                className="w-full bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-40 text-sm">
+                {loadingImg ? "\ud83c\udfa8 Generating (~10s)\u2026" : "\ud83c\udfa8 Generate Image ($0.04)"}
+              </button>
+              {imgMsg && (
+                <div className={`text-sm p-3 rounded-lg ${
+                  imgMsg.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                }`}>{imgMsg}</div>
+              )}
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                <strong>Pro tip:</strong> Save to <code>public/images/posts/slug-name.jpg</code>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl p-6 shadow-sm">
+              <h2 className="font-bold text-gray-900 mb-4">Preview</h2>
+              {loadingImg && (
+                <div className="aspect-video bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl flex items-center justify-center animate-pulse">
+                  <span className="text-5xl">\ud83c\udfa8</span>
+                </div>
+              )}
+              {imgUrl && !loadingImg && (
+                <div className="space-y-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={imgUrl} alt="AI Generated" className="w-full rounded-xl shadow" />
+                  <a href={imgUrl} download="blog-image.png" target="_blank" rel="noreferrer"
+                    className="flex items-center justify-center gap-2 bg-green-600 text-white py-2.5 rounded-xl font-semibold hover:bg-green-700 text-sm">
+                    \u2b07\ufe0f Download Image
+                  </a>
+                </div>
+              )}
+              {!imgUrl && !loadingImg && (
+                <div className="aspect-video bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-300 gap-3">
+                  <span className="text-5xl">\ud83d\uddbc\ufe0f</span>
+                  <span className="text-sm">Image appears here</span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* EDIT POST */}
+        {tab === "edit" && (
+          <div className="space-y-6">
+            {!editState ? (
+              <div className="bg-white rounded-2xl p-8 shadow-sm">
+                <h2 className="font-bold text-gray-900 mb-4">Edit a Post</h2>
+                <p className="text-gray-500 text-sm mb-6">Click <strong>Edit</strong> on any post in the Dashboard to load it here.</p>
+                {loadingPosts && <p className="text-gray-400 animate-pulse text-sm">Loading posts\u2026</p>}
+                {!loadingPosts && savedPosts.length > 0 && (
+                  <div className="space-y-2">
+                    {savedPosts.map(p => (
+                      <button key={p.slug} onClick={() => openEdit(p.slug)}
+                        className="w-full flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-pink-300 hover:bg-pink-50 text-left transition-colors">
+                        <span className="font-medium text-gray-800 text-sm">{p.title}</span>
+                        <span className="text-xs text-gray-400 shrink-0 ml-2">{p.date}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="bg-white rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h2 className="font-bold text-gray-900">Editing: <span className="font-mono text-pink-600">{editState.slug}</span></h2>
+                    <p className="text-xs text-gray-400 mt-0.5">content/posts/{editState.slug}.md</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={handleEditSave} disabled={editSaving}
+                      className="bg-green-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 text-sm">
+                      {editSaving ? "Saving\u2026" : "\ud83d\udcbe Save Changes"}
+                    </button>
+                    <button onClick={() => { setEditState(null); setLinkSuggestions([]); setEditMsg(""); }}
+                      className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm">
+                      \u2190 Back
+                    </button>
+                  </div>
+                </div>
+
+                {editMsg && (
+                  <div className={`text-sm p-3 rounded-lg ${editMsg.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                    {editMsg}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-2xl p-5 shadow-sm space-y-4">
+                    <h3 className="font-semibold text-gray-800">Metadata</h3>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 block mb-1">Title</label>
+                      <input value={editState.title}
+                        onChange={e => setEditState({ ...editState, title: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 block mb-1">Meta Description</label>
+                      <textarea value={editState.description}
+                        onChange={e => setEditState({ ...editState, description: e.target.value })}
+                        rows={3}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none"
+                      />
+                      <div className={`text-xs mt-1 ${editState.description.length > 160 ? "text-red-500" : "text-gray-400"}`}>
+                        {editState.description.length}/160 chars
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 block mb-1">
+                        Scheduled Publish Date <span className="text-gray-400 font-normal">(blank = live now)</span>
+                      </label>
+                      <input type="date" value={editState.publishDate}
+                        onChange={e => setEditState({ ...editState, publishDate: e.target.value })}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
+                      />
+                      {editState.publishDate && (
+                        <button onClick={() => setEditState({ ...editState, publishDate: "" })}
+                          className="text-xs text-red-400 hover:text-red-600 mt-1">
+                          \u00d7 Remove schedule (publish now)
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* AI Internal Links */}
+                  <div className="bg-white rounded-2xl p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-800">\ud83d\udd17 AI Internal Links</h3>
+                      <button onClick={handleGetLinks} disabled={loadingLinks}
+                        className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-40">
+                        {loadingLinks ? "Analyzing\u2026" : "Suggest Links"}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-400">GPT-4o scans your existing posts and finds natural linking opportunities in this article.</p>
+                    {linkSuggestions.length === 0 && !loadingLinks && (
+                      <div className="bg-gray-50 rounded-xl p-4 text-center text-gray-400 text-xs">
+                        Click &quot;Suggest Links&quot; to find internal linking opportunities
+                      </div>
+                    )}
+                    {linkSuggestions.length > 0 && (
+                      <div className="space-y-2">
+                        {linkSuggestions.map((s, i) => (
+                          <div key={i} className="bg-blue-50 rounded-lg p-3 text-xs space-y-1">
+                            <div className="font-mono text-blue-800">&quot;{s.anchorText}&quot;</div>
+                            <div className="text-blue-600">\u2192 /blog/{s.slug}</div>
+                            <div className="text-gray-500">{s.reason}</div>
+                          </div>
+                        ))}
+                        <button onClick={applyLinks} disabled={linksApplied}
+                          className={`w-full py-2 rounded-lg text-xs font-semibold transition-colors ${
+                            linksApplied
+                              ? "bg-green-100 text-green-700 cursor-default"
+                              : "bg-blue-600 text-white hover:bg-blue-700"
+                          }`}>
+                          {linksApplied ? "\u2705 Links applied to content" : `Apply ${linkSuggestions.length} links to content`}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Content editor */}
+                <div className="bg-white rounded-2xl p-5 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="font-semibold text-gray-800">Article Content (Markdown)</h3>
+                    <span className="text-xs text-gray-400">
+                      {editState.content.split(/\s+/).filter(Boolean).length.toLocaleString()} words
+                    </span>
+                  </div>
+                  <textarea
+                    value={editState.content}
+                    onChange={e => setEditState({ ...editState, content: e.target.value })}
+                    rows={30}
+                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:ring-2 focus:ring-pink-400 focus:outline-none resize-y leading-relaxed"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ANALYTICS */}
+        {tab === "analytics" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">Google Analytics (Last 30 Days)</h2>
+              <button onClick={loadAnalytics} disabled={loadingAnalytics}
+                className="text-sm text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg disabled:opacity-40">
+                {loadingAnalytics ? "Loading\u2026" : "\u21bb Refresh"}
+              </button>
+            </div>
+
+            {loadingAnalytics && (
+              <div className="bg-white rounded-2xl p-12 shadow-sm text-center">
+                <p className="text-gray-400 animate-pulse">Fetching from Google Analytics\u2026</p>
+              </div>
+            )}
+
+            {!loadingAnalytics && analytics && !analytics.configured && (
+              <div className="bg-white rounded-2xl p-8 shadow-sm">
+                <h3 className="font-semibold text-gray-800 mb-3">Setup Required</h3>
+                <p className="text-gray-500 text-sm mb-4">{analytics.message}</p>
+                <div className="bg-gray-50 rounded-xl p-4 text-xs font-mono space-y-1 text-gray-600">
+                  <p className="font-semibold text-gray-800 mb-2">Add to .env.local:</p>
+                  <p>GA4_PROPERTY_ID=123456789</p>
+                  <p>{`GA4_SERVICE_ACCOUNT_KEY={"type":"service_account",...}`}</p>
+                </div>
+                <div className="mt-4 text-xs text-gray-400 space-y-1">
+                  <p>1. Go to <strong>Google Cloud Console</strong> \u2192 Create service account</p>
+                  <p>2. Grant it <strong>Viewer</strong> role on your GA4 property</p>
+                  <p>3. Create a JSON key \u2192 paste entire JSON as GA4_SERVICE_ACCOUNT_KEY</p>
+                  <p>4. Find Property ID in GA4: Admin \u2192 Property Settings \u2192 Property ID</p>
+                </div>
+              </div>
+            )}
+
+            {!loadingAnalytics && analytics?.configured && analytics.error && (
+              <div className="bg-red-50 rounded-2xl p-6 shadow-sm">
+                <p className="text-red-700 text-sm">\u274c {analytics.error}</p>
+              </div>
+            )}
+
+            {!loadingAnalytics && analytics?.configured && analytics.summary && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  {[
+                    { label: "Page Views", value: analytics.summary.pageViews.toLocaleString(), color: "blue" },
+                    { label: "Sessions", value: analytics.summary.sessions.toLocaleString(), color: "green" },
+                    { label: "New Users", value: analytics.summary.newUsers.toLocaleString(), color: "purple" },
+                    { label: "Bounce Rate", value: `${analytics.summary.bounceRate}%`, color: "orange" },
+                    { label: "Avg Duration", value: `${Math.floor(analytics.summary.avgDuration / 60)}m ${analytics.summary.avgDuration % 60}s`, color: "green" },
+                  ].map(m => <Metric key={m.label} label={m.label} value={m.value} color={m.color} />)}
+                </div>
+
+                {analytics.topPages && analytics.topPages.length > 0 && (
+                  <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                    <div className="p-4 bg-gray-50 border-b border-gray-100 grid grid-cols-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      <span className="col-span-1">Page</span>
+                      <span className="text-right">Views</span>
+                      <span className="text-right">Sessions</span>
+                    </div>
+                    {analytics.topPages.map((page, i) => (
+                      <div key={i} className={`grid grid-cols-3 items-center p-4 border-b border-gray-50 ${i % 2 === 1 ? "bg-gray-50/40" : ""}`}>
+                        <span className="text-sm text-gray-700 font-mono truncate">{page.path}</span>
+                        <span className="text-right text-sm font-semibold text-gray-800">{page.views.toLocaleString()}</span>
+                        <span className="text-right text-sm text-gray-500">{page.sessions.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* LEADS */}
+        {tab === "leads" && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-gray-900">
+                Leads &amp; Inbox
+                <span className="ml-2 text-gray-400 font-normal text-base">
+                  {subscribers.length} subscribers · {contacts.length} messages · {comments.filter(c => !c.approved).length} pending comments
+                </span>
+              </h2>
+              <button onClick={loadLeads} disabled={loadingLeads}
+                className="text-sm text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg disabled:opacity-40">
+                {loadingLeads ? "Loading\u2026" : "\u21bb Refresh"}
+              </button>
+            </div>
+
+            {loadingLeads && <p className="text-gray-400 animate-pulse text-sm">Loading leads\u2026</p>}
+
+            {/* Subscribers */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800">
+                  \ud83d\udce7 Newsletter Subscribers
+                  <span className="ml-2 bg-pink-100 text-pink-700 text-xs px-2 py-0.5 rounded-full font-normal">{subscribers.length}</span>
+                </h3>
+                {subscribers.length > 0 && (
+                  <button
+                    onClick={() => {
+                      const csv = ["email,name,subscribed_at", ...subscribers.map(s =>
+                        `${s.email},${s.name ?? ""},${s.subscribed_at ?? ""}`)].join("\n");
+                      const a = document.createElement("a");
+                      a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+                      a.download = "subscribers.csv";
+                      a.click();
+                    }}
+                    className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg">
+                    \u2b07\ufe0f Export CSV
+                  </button>
+                )}
+              </div>
+              {subscribers.length === 0 && !loadingLeads ? (
+                <div className="p-10 text-center text-gray-400 text-sm">
+                  No subscribers yet. Visitors who sign up via the footer newsletter form appear here.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50 max-h-80 overflow-y-auto">
+                  {subscribers.map((s, i) => (
+                    <div key={i} className="flex items-center gap-3 px-5 py-3 hover:bg-gray-50">
+                      <div className="w-8 h-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600 text-xs font-bold shrink-0">
+                        {s.email[0].toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-800 truncate">{s.email}</div>
+                        {s.name && <div className="text-xs text-gray-400">{s.name}</div>}
+                      </div>
+                      <div className="text-xs text-gray-400 shrink-0">
+                        {s.subscribed_at ? new Date(s.subscribed_at).toLocaleDateString() : ""}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Contact messages */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800">
+                  \ud83d\udcac Contact Messages
+                  <span className="ml-2 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-normal">{contacts.length}</span>
+                  {contacts.filter(c => !c.read).length > 0 && (
+                    <span className="ml-1 bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-normal">
+                      {contacts.filter(c => !c.read).length} unread
+                    </span>
+                  )}
+                </h3>
+              </div>
+              {contacts.length === 0 && !loadingLeads ? (
+                <div className="p-10 text-center text-gray-400 text-sm">
+                  No contact submissions yet. Messages from the contact page form appear here.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50 max-h-[32rem] overflow-y-auto">
+                  {contacts.map((c) => (
+                    <div key={c.id ?? c.email + c.submitted_at}
+                      className={`px-5 py-4 hover:bg-gray-50 cursor-pointer ${!c.read ? "bg-blue-50/30" : ""}`}
+                      onClick={() => setExpandedContact(expandedContact === c.id ? null : (c.id ?? null))}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-xs font-bold shrink-0 mt-0.5">
+                          {c.name[0].toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className={`text-sm font-medium ${!c.read ? "text-gray-900" : "text-gray-700"}`}>
+                              {c.name}
+                            </span>
+                            <span className="text-xs text-gray-400 shrink-0">
+                              {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString() : ""}
+                            </span>
+                          </div>
+                          <div className="text-xs text-gray-500">{c.email}</div>
+                          {expandedContact !== c.id ? (
+                            <div className="text-sm text-gray-600 mt-1 line-clamp-1">{c.message}</div>
+                          ) : (
+                            <div className="mt-2 bg-gray-50 rounded-xl p-3 text-sm text-gray-700 whitespace-pre-wrap">
+                              {c.message}
+                            </div>
+                          )}
+                        </div>
+                        {!c.read && (
+                          <div className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Blog Comments — moderation */}
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-800">
+                  💬 Blog Comments
+                  <span className="ml-2 bg-purple-100 text-purple-700 text-xs px-2 py-0.5 rounded-full font-normal">{comments.length}</span>
+                  {comments.filter(c => !c.approved).length > 0 && (
+                    <span className="ml-1 bg-orange-100 text-orange-600 text-xs px-2 py-0.5 rounded-full font-normal">
+                      {comments.filter(c => !c.approved).length} pending
+                    </span>
+                  )}
+                </h3>
+              </div>
+              {comments.length === 0 && !loadingLeads ? (
+                <div className="p-10 text-center text-gray-400 text-sm">
+                  No comments yet. Readers who submit comments on blog posts appear here for moderation.
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-50 max-h-[40rem] overflow-y-auto">
+                  {comments.map((c) => (
+                    <div key={c.id ?? `${c.author_name}-${c.submitted_at}`}
+                      className={`px-5 py-4 ${!c.approved ? "bg-orange-50/30" : ""}`}>
+                      <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-xs font-bold shrink-0 mt-0.5">
+                          {c.author_name[0]?.toUpperCase() ?? "?"}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <div>
+                              <span className="text-sm font-medium text-gray-900">{c.author_name}</span>
+                              <span className="text-xs text-gray-400 ml-2">{c.author_email}</span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="text-xs text-gray-400">
+                                {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString() : ""}
+                              </span>
+                              {!c.approved && (
+                                <span className="text-xs bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full">pending</span>
+                              )}
+                              {c.approved && (
+                                <span className="text-xs bg-green-100 text-green-600 px-2 py-0.5 rounded-full">approved</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            on <span className="font-mono">/blog/{c.post_slug}</span>
+                          </div>
+                          <p className="text-sm text-gray-700 mt-2 bg-gray-50 rounded-xl p-3 whitespace-pre-line">{c.body}</p>
+                          <div className="flex gap-2 mt-3">
+                            {!c.approved && (
+                              <button
+                                onClick={async () => {
+                                  if (!c.id) return;
+                                  await fetch("/api/comments", {
+                                    method: "PATCH",
+                                    headers: { "Content-Type": "application/json", ...authHeaders() },
+                                    body: JSON.stringify({ id: c.id }),
+                                  });
+                                  setComments(prev => prev.map(x => x.id === c.id ? { ...x, approved: true } : x));
+                                }}
+                                className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors">
+                                ✓ Approve
+                              </button>
+                            )}
+                            <button
+                              onClick={async () => {
+                                if (!c.id || !confirm("Delete this comment?")) return;
+                                await fetch(`/api/comments?id=${encodeURIComponent(c.id)}`, {
+                                  method: "DELETE",
+                                  headers: authHeaders(),
+                                });
+                                setComments(prev => prev.filter(x => x.id !== c.id));
+                              }}
+                              className="text-xs bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">
+                              🗑 Delete
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,54 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Custom prose styles for blog posts ── */
+.prose img {
+  @apply rounded-xl shadow-md my-6 w-full object-cover;
+}
+.prose h2 {
+  @apply text-2xl font-bold mt-10 mb-4 text-gray-900;
+}
+.prose h3 {
+  @apply text-xl font-semibold mt-8 mb-3 text-gray-800;
+}
+.prose p {
+  @apply leading-relaxed mb-4 text-gray-700;
+}
+.prose ul {
+  @apply list-disc pl-6 mb-4 space-y-1;
+}
+.prose ol {
+  @apply list-decimal pl-6 mb-4 space-y-1;
+}
+.prose a {
+  @apply text-pink-600 hover:text-pink-800 underline;
+}
+.prose blockquote {
+  @apply border-l-4 border-pink-400 pl-4 italic text-gray-600 my-6;
+}
+.prose table {
+  @apply w-full border-collapse text-sm my-6;
+}
+.prose th {
+  @apply bg-pink-50 font-semibold px-4 py-2 border border-gray-200 text-left;
+}
+.prose td {
+  @apply px-4 py-2 border border-gray-200;
+}
+.prose strong {
+  @apply font-semibold text-gray-900;
+}
+.prose code {
+  @apply bg-gray-100 text-pink-700 px-1.5 py-0.5 rounded text-sm font-mono;
+}
+
+/* ── Smooth scroll ── */
+html {
+  scroll-behavior: smooth;
+}
+
+/* ── Focus ring for accessibility ── */
+*:focus-visible {
+  @apply outline-none ring-2 ring-pink-400 ring-offset-2;
+}
