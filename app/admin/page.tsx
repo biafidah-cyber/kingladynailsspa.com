@@ -206,6 +206,10 @@ export default function AdminPage() {
   const [loadingImg, setLoadingImg] = useState(false);
   const [imgMsg, setImgMsg] = useState("");
 
+  // Auto-image (generated alongside post)
+  const [autoImgUrl, setAutoImgUrl] = useState("");
+  const [autoImgStatus, setAutoImgStatus] = useState<"idle"|"generating"|"ready"|"saved"|"error">("idle");
+
   // Edit
   const [editState, setEditState] = useState<EditState | null>(null);
   const [editSaving, setEditSaving] = useState(false);
@@ -227,7 +231,7 @@ export default function AdminPage() {
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [expandedContact, setExpandedContact] = useState<string | null>(null);
 
-  // â”€â”€ Dashboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Dashboard ───────────────────────────────────────────────────────────────
   const loadPosts = useCallback(async () => {
     setLoadingPosts(true);
     try {
@@ -246,7 +250,7 @@ export default function AdminPage() {
     setSavedPosts(p => p.filter(x => x.slug !== slug));
   }
 
-  // â”€â”€ Generate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Generate ────────────────────────────────────────────────────────────────
   async function handleKwResearch() {
     if (!keyword.trim()) return;
     setLoadingKw(true); setKwData(null);
@@ -259,13 +263,14 @@ export default function AdminPage() {
       if (data.error) throw new Error(data.error);
       setKwData(data);
     } catch (e: unknown) {
-      setMessage(`âŒ KW error: ${(e as Error).message}`);
+      setMessage(`❌ KW error: ${(e as Error).message}`);
     } finally { setLoadingKw(false); }
   }
 
   async function handleGenerate() {
     if (!keyword.trim()) return;
     setLoadingPost(true); setPost(null); setSeoScore(null); setMessage(""); setShowPreview(false);
+    setAutoImgUrl(""); setAutoImgStatus("idle");
     try {
       const res = await fetch("/api/generate", {
         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
@@ -276,8 +281,20 @@ export default function AdminPage() {
       setPost(data);
       setSeoScore(calcSeoScore(data.html, keyword));
       setShowPreview(true);
+      // Auto-generate cover image in background
+      setAutoImgStatus("generating");
+      fetch("/api/generate-image", {
+        method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          prompt: `${keyword} professional photography, blog cover image, nail salon beauty`,
+          style: "photorealistic professional photography, Canon DSLR, bright clean studio",
+        }),
+      }).then(r => r.json()).then(img => {
+        if (img.url) { setAutoImgUrl(img.url); setAutoImgStatus("ready"); }
+        else { setAutoImgStatus("error"); }
+      }).catch(() => setAutoImgStatus("error"));
     } catch (e: unknown) {
-      setMessage(`âŒ ${(e as Error).message}`);
+      setMessage(`❌ ${(e as Error).message}`);
     } finally { setLoadingPost(false); }
   }
 
@@ -285,24 +302,36 @@ export default function AdminPage() {
     if (!post) return;
     setSaving(true); setMessage("");
     try {
+      // Save cover image first if auto-generated and ready
+      if (autoImgUrl && autoImgStatus === "ready") {
+        try {
+          await fetch("/api/save-image", {
+            method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ url: autoImgUrl, slug: post.slug }),
+          });
+          setAutoImgStatus("saved");
+        } catch { /* non-blocking — image save failure shouldn't block post save */ }
+      }
       const res = await fetch("/api/save-post", {
         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ ...post, publishDate }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      const indexed = data.indexed ? " ðŸ“¡ IndexNow pinged." : "";
-      setMessage(`âœ… Saved! ${post.slug}.md${indexed}`);
+      const indexed = data.indexed ? " 📡 IndexNow pinged." : "";
+      const imgNote = autoImgStatus === "saved" ? " 🎨 Cover image saved." : "";
+      setMessage(`✅ Saved! ${post.slug}.md${indexed}${imgNote}`);
       setTimeout(() => {
         setPost(null); setSeoScore(null); setShowPreview(false);
         setKeyword(""); setKwData(null); setMessage("");
+        setAutoImgUrl(""); setAutoImgStatus("idle");
       }, 4000);
     } catch (e: unknown) {
-      setMessage(`âŒ ${(e as Error).message}`);
+      setMessage(`❌ ${(e as Error).message}`);
     } finally { setSaving(false); }
   }
 
-  // â”€â”€ Bulk generate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Bulk generate ───────────────────────────────────────────────────────────
   async function runBulk() {
     const kws = bulkKeywords.split("\n").map(k => k.trim()).filter(Boolean).slice(0, 20);
     if (!kws.length) return;
@@ -332,7 +361,7 @@ export default function AdminPage() {
     setBulkRunning(false);
   }
 
-  // â”€â”€ Image generation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // ── Image generation ────────────────────────────────────────────────────────
   async function handleGenImg() {
     if (!imgPrompt.trim()) return;
     setLoadingImg(true); setImgUrl(""); setImgMsg("");
@@ -344,9 +373,9 @@ export default function AdminPage() {
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setImgUrl(data.url);
-      setImgMsg("âœ… Done! Right-click â†’ Save As â†’ public/images/posts/");
+      setImgMsg("✅ Done! Right-click → Save As → public/images/posts/");
     } catch (e: unknown) {
-      setImgMsg(`âŒ ${(e as Error).message}`);
+      setImgMsg(`❌ ${(e as Error).message}`);
     } finally { setLoadingImg(false); }
   }
 
@@ -380,16 +409,16 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setEditMsg(`\u2705 Saved! (${data.wordCount?.toLocaleString()} words)`);
+      setEditMsg(`✅ Saved! (${data.wordCount?.toLocaleString()} words)`);
     } catch (e: unknown) {
-      setEditMsg(`\u274c ${(e as Error).message}`);
+      setEditMsg(`❌ ${(e as Error).message}`);
     } finally { setEditSaving(false); }
   }
 
   // -- Internal link suggestions -----------------------------------------------
   async function handleGetLinks() {
     if (!editState?.content) return;
-    setLoadingLinks(true); setLinkSuggestions([]);
+    setLoadingLinks(true); setLinkSuggestions([]); setEditMsg("");
     try {
       const res = await fetch("/api/internal-links", {
         method: "POST",
@@ -397,9 +426,14 @@ export default function AdminPage() {
         body: JSON.stringify({ html: editState.content, keyword: editState.title }),
       });
       const data = await res.json();
-      setLinkSuggestions(data.suggestions ?? []);
+      if (data.error) throw new Error(data.error);
+      const suggestions = data.suggestions ?? [];
+      setLinkSuggestions(suggestions);
+      if (suggestions.length === 0) {
+        setEditMsg(data.message ?? "ℹ️ No linking opportunities found. Publish more posts to enable this feature.");
+      }
     } catch (e: unknown) {
-      setEditMsg(`\u274c Links error: ${(e as Error).message}`);
+      setEditMsg(`❌ Links error: ${(e as Error).message}`);
     } finally { setLoadingLinks(false); }
   }
 
@@ -446,13 +480,13 @@ export default function AdminPage() {
   useEffect(() => { if (tab === "leads") loadLeads(); }, [tab, loadLeads]);
 
   const tabs: { id: Tab; label: string }[] = [
-    { id: "dashboard", label: "\ud83d\udcca Dashboard" },
-    { id: "generate",  label: "\u2728 Generate Post" },
-    { id: "bulk",      label: "\u26a1 Bulk Generate" },
-    { id: "images",    label: "\ud83c\udfa8 AI Images" },
-    { id: "edit",      label: "\u270f\ufe0f Edit Post" },
-    { id: "analytics", label: "\ud83d\udcc8 Analytics" },
-    { id: "leads",     label: "\ud83d\udce5 Leads" },
+    { id: "dashboard", label: "📊 Dashboard" },
+    { id: "generate",  label: "✨ Generate Post" },
+    { id: "bulk",      label: "⚡ Bulk Generate" },
+    { id: "images",    label: "🎨 AI Images" },
+    { id: "edit",      label: "✏️ Edit Post" },
+    { id: "analytics", label: "📈 Analytics" },
+    { id: "leads",     label: "📥 Leads" },
   ];
 
   const doneCount = bulkJobs.filter(j => j.status === "done").length;
@@ -464,7 +498,7 @@ export default function AdminPage() {
       {/* Top bar */}
       <div className="bg-gray-900 text-white px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <span className="text-xl">\u2699\ufe0f</span>
+          <span className="text-xl">⚙️</span>
           <span className="font-bold">Admin CMS</span>
           <span className="text-gray-400 text-sm hidden md:block">AI Blog Manager</span>
         </div>
@@ -476,7 +510,7 @@ export default function AdminPage() {
             className="text-gray-400 hover:text-white text-xs border border-gray-600 px-3 py-1 rounded-lg">
             Sign out
           </button>
-          <Link href="/" className="text-gray-300 hover:text-white text-sm">\u2190 View Site</Link>
+          <Link href="/" className="text-gray-300 hover:text-white text-sm">← View Site</Link>
         </div>
       </div>
 
@@ -504,15 +538,15 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {loadingPosts && <p className="text-gray-400 animate-pulse text-sm">Loading posts\u2026</p>}
+            {loadingPosts && <p className="text-gray-400 animate-pulse text-sm">Loading posts…</p>}
 
             {!loadingPosts && savedPosts.length === 0 && (
               <div className="bg-white rounded-2xl p-12 text-center shadow-sm">
-                <p className="text-gray-400 text-4xl mb-3">\ud83d\udcdd</p>
+                <p className="text-gray-400 text-4xl mb-3">📝</p>
                 <p className="text-gray-500 mb-4">No blog posts yet.</p>
                 <button onClick={() => setTab("generate")}
                   className="bg-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:bg-pink-700">
-                  Generate your first post \u2192
+                  Generate your first post →
                 </button>
               </div>
             )}
@@ -539,7 +573,7 @@ export default function AdminPage() {
                         <span className="text-xs text-gray-400 font-mono truncate">{p.slug}</span>
                         {p.publishDate && new Date(p.publishDate) > new Date() && (
                           <span className="text-xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full shrink-0">
-                            \ud83d\udd50 {p.publishDate}
+                            🕐 {p.publishDate}
                           </span>
                         )}
                       </div>
@@ -550,7 +584,7 @@ export default function AdminPage() {
                       </span>
                     </div>
                     <div className="hidden md:block text-right pr-4">
-                      <div className="text-xs font-semibold text-gray-700">{p.wordCount?.toLocaleString() ?? "\u2014"} w</div>
+                      <div className="text-xs font-semibold text-gray-700">{p.wordCount?.toLocaleString() ?? "—"} w</div>
                       <div className="text-xs text-gray-400">{p.date}</div>
                     </div>
                     <div className="flex items-center justify-end gap-2">
@@ -560,7 +594,7 @@ export default function AdminPage() {
                       </button>
                       <button onClick={() => deletePost(p.slug)}
                         className="text-red-400 hover:text-red-600 text-xs px-2 py-1 rounded hover:bg-red-50 shrink-0">
-                        \u2715
+                        ✕
                       </button>
                     </div>
                   </div>
@@ -589,7 +623,7 @@ export default function AdminPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">Business Context (optional)</label>
                     <textarea value={businessCtx} onChange={e => setBusinessCtx(e.target.value)}
-                      placeholder="King Lady Nails & Spa, Las Vegas nail salon\u2026"
+                      placeholder="King Lady Nails & Spa, Las Vegas nail salon…"
                       rows={3}
                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none"
                     />
@@ -606,16 +640,16 @@ export default function AdminPage() {
                   <div className="flex gap-2">
                     <button onClick={handleKwResearch} disabled={loadingKw || !keyword.trim()}
                       className="flex-1 bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm">
-                      {loadingKw ? "Checking\u2026" : "\ud83d\udd0d KW Data"}
+                      {loadingKw ? "Checking…" : "🔍 KW Data"}
                     </button>
                     <button onClick={handleGenerate} disabled={loadingPost || !keyword.trim()}
                       className="flex-1 bg-pink-600 text-white font-bold py-2.5 rounded-lg hover:bg-pink-700 disabled:opacity-40 text-sm">
-                      {loadingPost ? "\u2728 Writing\u2026" : "\u2728 Generate"}
+                      {loadingPost ? "✨ Writing…" : "✨ Generate"}
                     </button>
                   </div>
                   {message && (
                     <div className={`text-sm p-3 rounded-lg ${
-                      message.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                      message.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
                     }`}>{message}</div>
                   )}
                 </div>
@@ -624,17 +658,17 @@ export default function AdminPage() {
                 <div className="bg-white rounded-2xl p-6 shadow-sm">
                   <h2 className="font-bold text-gray-900 mb-4">2. Keyword Intelligence</h2>
                   {!kwData && !loadingKw && <p className="text-gray-400 text-sm">Run KW Data first to see DataForSEO metrics</p>}
-                  {loadingKw && <p className="text-blue-500 text-sm animate-pulse">Fetching from DataForSEO\u2026</p>}
+                  {loadingKw && <p className="text-blue-500 text-sm animate-pulse">Fetching from DataForSEO…</p>}
                   {kwData && (
                     <div className="space-y-4">
                       <div className="grid grid-cols-3 gap-3">
-                        <Metric label="Monthly Vol" value={kwData.monthly_volume?.toLocaleString() ?? "\u2014"} color="blue" />
-                        <Metric label="CPC (USD)" value={kwData.cpc ? `$${kwData.cpc.toFixed(2)}` : "\u2014"} color="green" />
-                        <Metric label="Competition" value={kwData.competition || "\u2014"} color="orange" />
+                        <Metric label="Monthly Vol" value={kwData.monthly_volume?.toLocaleString() ?? "—"} color="blue" />
+                        <Metric label="CPC (USD)" value={kwData.cpc ? `$${kwData.cpc.toFixed(2)}` : "—"} color="green" />
+                        <Metric label="Competition" value={kwData.competition || "—"} color="orange" />
                       </div>
                       {kwData.related?.length > 0 && (
                         <div>
-                          <p className="text-xs font-medium text-gray-500 mb-2">Related \u2014 click to use</p>
+                          <p className="text-xs font-medium text-gray-500 mb-2">Related — click to use</p>
                           <div className="flex flex-wrap gap-1.5">
                             {kwData.related.map(kw => (
                               <button key={kw} onClick={() => setKeyword(kw)}
@@ -647,7 +681,7 @@ export default function AdminPage() {
                       )}
                       {kwData.serp && kwData.serp.length > 0 && (
                         <div>
-                          <p className="text-xs font-medium text-gray-500 mb-2">\ud83c\udfc6 Current Top Results</p>
+                          <p className="text-xs font-medium text-gray-500 mb-2">🏆 Current Top Results</p>
                           <div className="space-y-2">
                             {kwData.serp.slice(0, 3).map(r => (
                               <div key={r.rank} className="flex gap-2 text-xs p-2 bg-gray-50 rounded-lg">
@@ -674,7 +708,7 @@ export default function AdminPage() {
                       <h2 className="font-bold text-gray-900 text-xl truncate">{post.title}</h2>
                       <p className="text-gray-500 text-sm mt-1 line-clamp-2">{post.description}</p>
                       {publishDate && (
-                        <p className="text-amber-600 text-xs mt-1">\ud83d\udd50 Scheduled: {publishDate}</p>
+                        <p className="text-amber-600 text-xs mt-1">🕐 Scheduled: {publishDate}</p>
                       )}
                       <div className="flex gap-1.5 mt-2 flex-wrap">
                         {post.tags?.slice(0, 5).map(t => (
@@ -685,20 +719,35 @@ export default function AdminPage() {
                     <div className="flex gap-2">
                       <button onClick={handleSave} disabled={saving}
                         className="bg-green-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50">
-                        {saving ? "Saving\u2026" : "\ud83d\udcbe Save & Index"}
+                        {saving ? "Saving…" : "💾 Save & Index"}
                       </button>
                       <button onClick={() => { setShowPreview(false); setPost(null); setSeoScore(null); }}
-                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">\u2190 Back</button>
+                        className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200">← Back</button>
                     </div>
                   </div>
 
                   {message && (
                     <div className={`text-sm p-3 rounded-lg ${
-                      message.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                      message.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
                     }`}>{message}</div>
                   )}
 
-                  {/* SEO Score */}
+                  {/* Auto cover image status */}
+                  {autoImgStatus !== "idle" && (
+                    <div className="bg-white rounded-2xl p-4 shadow-sm">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-sm font-semibold text-gray-800">🎨 Cover Image</span>
+                        {autoImgStatus === "generating" && <span className="text-xs text-blue-500 animate-pulse">Generating with DALL-E 3…</span>}
+                        {autoImgStatus === "ready"      && <span className="text-xs text-green-600">✅ Ready — saves automatically when you click Save & Index</span>}
+                        {autoImgStatus === "saved"      && <span className="text-xs text-green-700">✅ Saved to /images/posts/{post?.slug}.jpg</span>}
+                        {autoImgStatus === "error"      && <span className="text-xs text-orange-500">⚠️ Image generation failed — generate manually in AI Images tab</span>}
+                      </div>
+                      {autoImgUrl && (autoImgStatus === "ready" || autoImgStatus === "saved") && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={autoImgUrl} alt="Auto cover" className="w-full rounded-xl max-h-48 object-cover" />
+                      )}
+                    </div>
+                  )}
                   {seoScore && (
                     <div className="bg-white rounded-2xl p-5 shadow-sm">
                       <div className="flex items-center justify-between mb-4">
@@ -718,11 +767,11 @@ export default function AdminPage() {
                         </div>
                         <div className="space-y-2">
                           {[
-                            { ok: seoScore.wordCount >= 1500, text: `${seoScore.wordCount.toLocaleString()} words${seoScore.wordCount >= 1500 ? " \u2705" : " \u26a0\ufe0f need 1500+"}` },
-                            { ok: seoScore.hasKeywordInH1, text: seoScore.hasKeywordInH1 ? "Keyword in H1 \u2705" : "Keyword missing from H1 \u26a0\ufe0f" },
-                            { ok: seoScore.keywordDensity >= 1 && seoScore.keywordDensity <= 2, text: `Density ${seoScore.keywordDensity}%${seoScore.keywordDensity >= 1 && seoScore.keywordDensity <= 2 ? " \u2705" : " \u26a0\ufe0f (target 1\u20132%)"}` },
-                            { ok: seoScore.hasFaq, text: seoScore.hasFaq ? "FAQ section \u2705" : "No FAQ section \u26a0\ufe0f" },
-                            { ok: seoScore.hasExternalLinks >= 3, text: `${seoScore.hasExternalLinks} external links${seoScore.hasExternalLinks >= 3 ? " \u2705" : " \u26a0\ufe0f need 3"}` },
+                            { ok: seoScore.wordCount >= 1500, text: `${seoScore.wordCount.toLocaleString()} words${seoScore.wordCount >= 1500 ? " ✅" : " ⚠️ need 1500+"}` },
+                            { ok: seoScore.hasKeywordInH1, text: seoScore.hasKeywordInH1 ? "Keyword in H1 ✅" : "Keyword missing from H1 ⚠️" },
+                            { ok: seoScore.keywordDensity >= 1 && seoScore.keywordDensity <= 2, text: `Density ${seoScore.keywordDensity}%${seoScore.keywordDensity >= 1 && seoScore.keywordDensity <= 2 ? " ✅" : " ⚠️ (target 1–2%)"}` },
+                            { ok: seoScore.hasFaq, text: seoScore.hasFaq ? "FAQ section ✅" : "No FAQ section ⚠️" },
+                            { ok: seoScore.hasExternalLinks >= 3, text: `${seoScore.hasExternalLinks} external links${seoScore.hasExternalLinks >= 3 ? " ✅" : " ⚠️ need 3"}` },
                           ].map((item, i) => (
                             <div key={i} className={`text-xs px-3 py-2 rounded-lg ${
                               item.ok ? "bg-green-50 text-green-700" : "bg-yellow-50 text-yellow-700"
@@ -762,11 +811,11 @@ export default function AdminPage() {
               />
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400">
-                  {bulkKwCount} keywords \u00b7 \u2248${(bulkKwCount * 0.025).toFixed(2)} OpenAI cost
+                  {bulkKwCount} keywords · ≈${(bulkKwCount * 0.025).toFixed(2)} OpenAI cost
                 </span>
                 <button onClick={runBulk} disabled={bulkRunning || !bulkKeywords.trim()}
                   className="bg-pink-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-pink-700 disabled:opacity-40">
-                  {bulkRunning ? `\u26a1 Running (${doneCount}/${bulkKwCount})\u2026` : "\u26a1 Generate All"}
+                  {bulkRunning ? `⚡ Running (${doneCount}/${bulkKwCount})…` : "⚡ Generate All"}
                 </button>
               </div>
             </div>
@@ -790,7 +839,7 @@ export default function AdminPage() {
                     job.status === "running" ? "bg-blue-50 animate-pulse" : "bg-gray-50"
                   }`}>
                     <span className="text-base">
-                      {job.status === "done" ? "\u2705" : job.status === "error" ? "\u274c" : job.status === "running" ? "\u23f3" : "\u23f8\ufe0f"}
+                      {job.status === "done" ? "✅" : job.status === "error" ? "❌" : job.status === "running" ? "⏳" : "⏸️"}
                     </span>
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-gray-900 truncate">{job.keyword}</div>
@@ -802,8 +851,8 @@ export default function AdminPage() {
               </div>
               {bulkJobs.length > 0 && !bulkRunning && (
                 <div className="mt-4 pt-4 border-t border-gray-100 flex gap-4 text-sm">
-                  <span className="text-green-600 font-semibold">\u2705 {doneCount} saved</span>
-                  {errCount > 0 && <span className="text-red-500">\u274c {errCount} errors</span>}
+                  <span className="text-green-600 font-semibold">✅ {doneCount} saved</span>
+                  {errCount > 0 && <span className="text-red-500">❌ {errCount} errors</span>}
                 </div>
               )}
             </div>
@@ -839,11 +888,11 @@ export default function AdminPage() {
               </div>
               <button onClick={handleGenImg} disabled={loadingImg || !imgPrompt.trim()}
                 className="w-full bg-purple-600 text-white font-semibold py-3 rounded-xl hover:bg-purple-700 disabled:opacity-40 text-sm">
-                {loadingImg ? "\ud83c\udfa8 Generating (~10s)\u2026" : "\ud83c\udfa8 Generate Image ($0.04)"}
+                {loadingImg ? "🎨 Generating (~10s)…" : "🎨 Generate Image ($0.04)"}
               </button>
               {imgMsg && (
                 <div className={`text-sm p-3 rounded-lg ${
-                  imgMsg.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                  imgMsg.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
                 }`}>{imgMsg}</div>
               )}
               <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
@@ -855,7 +904,7 @@ export default function AdminPage() {
               <h2 className="font-bold text-gray-900 mb-4">Preview</h2>
               {loadingImg && (
                 <div className="aspect-video bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl flex items-center justify-center animate-pulse">
-                  <span className="text-5xl">\ud83c\udfa8</span>
+                  <span className="text-5xl">🎨</span>
                 </div>
               )}
               {imgUrl && !loadingImg && (
@@ -864,13 +913,13 @@ export default function AdminPage() {
                   <img src={imgUrl} alt="AI Generated" className="w-full rounded-xl shadow" />
                   <a href={imgUrl} download="blog-image.png" target="_blank" rel="noreferrer"
                     className="flex items-center justify-center gap-2 bg-green-600 text-white py-2.5 rounded-xl font-semibold hover:bg-green-700 text-sm">
-                    \u2b07\ufe0f Download Image
+                    ⬇️ Download Image
                   </a>
                 </div>
               )}
               {!imgUrl && !loadingImg && (
                 <div className="aspect-video bg-gray-50 rounded-xl flex flex-col items-center justify-center text-gray-300 gap-3">
-                  <span className="text-5xl">\ud83d\uddbc\ufe0f</span>
+                  <span className="text-5xl">🖼️</span>
                   <span className="text-sm">Image appears here</span>
                 </div>
               )}
@@ -885,7 +934,7 @@ export default function AdminPage() {
               <div className="bg-white rounded-2xl p-8 shadow-sm">
                 <h2 className="font-bold text-gray-900 mb-4">Edit a Post</h2>
                 <p className="text-gray-500 text-sm mb-6">Click <strong>Edit</strong> on any post in the Dashboard to load it here.</p>
-                {loadingPosts && <p className="text-gray-400 animate-pulse text-sm">Loading posts\u2026</p>}
+                {loadingPosts && <p className="text-gray-400 animate-pulse text-sm">Loading posts…</p>}
                 {!loadingPosts && savedPosts.length > 0 && (
                   <div className="space-y-2">
                     {savedPosts.map(p => (
@@ -908,17 +957,17 @@ export default function AdminPage() {
                   <div className="flex gap-2">
                     <button onClick={handleEditSave} disabled={editSaving}
                       className="bg-green-600 text-white px-5 py-2 rounded-lg font-semibold hover:bg-green-700 disabled:opacity-50 text-sm">
-                      {editSaving ? "Saving\u2026" : "\ud83d\udcbe Save Changes"}
+                      {editSaving ? "Saving…" : "💾 Save Changes"}
                     </button>
                     <button onClick={() => { setEditState(null); setLinkSuggestions([]); setEditMsg(""); }}
                       className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm">
-                      \u2190 Back
+                      ← Back
                     </button>
                   </div>
                 </div>
 
                 {editMsg && (
-                  <div className={`text-sm p-3 rounded-lg ${editMsg.startsWith("\u2705") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                  <div className={`text-sm p-3 rounded-lg ${editMsg.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
                     {editMsg}
                   </div>
                 )}
@@ -955,7 +1004,7 @@ export default function AdminPage() {
                       {editState.publishDate && (
                         <button onClick={() => setEditState({ ...editState, publishDate: "" })}
                           className="text-xs text-red-400 hover:text-red-600 mt-1">
-                          \u00d7 Remove schedule (publish now)
+                          × Remove schedule (publish now)
                         </button>
                       )}
                     </div>
@@ -964,10 +1013,10 @@ export default function AdminPage() {
                   {/* AI Internal Links */}
                   <div className="bg-white rounded-2xl p-5 shadow-sm space-y-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="font-semibold text-gray-800">\ud83d\udd17 AI Internal Links</h3>
+                      <h3 className="font-semibold text-gray-800">🔗 AI Internal Links</h3>
                       <button onClick={handleGetLinks} disabled={loadingLinks}
                         className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-semibold hover:bg-blue-700 disabled:opacity-40">
-                        {loadingLinks ? "Analyzing\u2026" : "Suggest Links"}
+                        {loadingLinks ? "Analyzing…" : "Suggest Links"}
                       </button>
                     </div>
                     <p className="text-xs text-gray-400">GPT-4o scans your existing posts and finds natural linking opportunities in this article.</p>
@@ -981,7 +1030,7 @@ export default function AdminPage() {
                         {linkSuggestions.map((s, i) => (
                           <div key={i} className="bg-blue-50 rounded-lg p-3 text-xs space-y-1">
                             <div className="font-mono text-blue-800">&quot;{s.anchorText}&quot;</div>
-                            <div className="text-blue-600">\u2192 /blog/{s.slug}</div>
+                            <div className="text-blue-600">→ /blog/{s.slug}</div>
                             <div className="text-gray-500">{s.reason}</div>
                           </div>
                         ))}
@@ -991,7 +1040,7 @@ export default function AdminPage() {
                               ? "bg-green-100 text-green-700 cursor-default"
                               : "bg-blue-600 text-white hover:bg-blue-700"
                           }`}>
-                          {linksApplied ? "\u2705 Links applied to content" : `Apply ${linkSuggestions.length} links to content`}
+                          {linksApplied ? "✅ Links applied to content" : `Apply ${linkSuggestions.length} links to content`}
                         </button>
                       </div>
                     )}
@@ -1025,13 +1074,13 @@ export default function AdminPage() {
               <h2 className="text-xl font-bold text-gray-900">Google Analytics (Last 30 Days)</h2>
               <button onClick={loadAnalytics} disabled={loadingAnalytics}
                 className="text-sm text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg disabled:opacity-40">
-                {loadingAnalytics ? "Loading\u2026" : "\u21bb Refresh"}
+                {loadingAnalytics ? "Loading…" : "↻ Refresh"}
               </button>
             </div>
 
             {loadingAnalytics && (
               <div className="bg-white rounded-2xl p-12 shadow-sm text-center">
-                <p className="text-gray-400 animate-pulse">Fetching from Google Analytics\u2026</p>
+                <p className="text-gray-400 animate-pulse">Fetching from Google Analytics…</p>
               </div>
             )}
 
@@ -1045,17 +1094,17 @@ export default function AdminPage() {
                   <p>{`GA4_SERVICE_ACCOUNT_KEY={"type":"service_account",...}`}</p>
                 </div>
                 <div className="mt-4 text-xs text-gray-400 space-y-1">
-                  <p>1. Go to <strong>Google Cloud Console</strong> \u2192 Create service account</p>
+                  <p>1. Go to <strong>Google Cloud Console</strong> → Create service account</p>
                   <p>2. Grant it <strong>Viewer</strong> role on your GA4 property</p>
-                  <p>3. Create a JSON key \u2192 paste entire JSON as GA4_SERVICE_ACCOUNT_KEY</p>
-                  <p>4. Find Property ID in GA4: Admin \u2192 Property Settings \u2192 Property ID</p>
+                  <p>3. Create a JSON key → paste entire JSON as GA4_SERVICE_ACCOUNT_KEY</p>
+                  <p>4. Find Property ID in GA4: Admin → Property Settings → Property ID</p>
                 </div>
               </div>
             )}
 
             {!loadingAnalytics && analytics?.configured && analytics.error && (
               <div className="bg-red-50 rounded-2xl p-6 shadow-sm">
-                <p className="text-red-700 text-sm">\u274c {analytics.error}</p>
+                <p className="text-red-700 text-sm">❌ {analytics.error}</p>
               </div>
             )}
 
@@ -1104,17 +1153,17 @@ export default function AdminPage() {
               </h2>
               <button onClick={loadLeads} disabled={loadingLeads}
                 className="text-sm text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg disabled:opacity-40">
-                {loadingLeads ? "Loading\u2026" : "\u21bb Refresh"}
+                {loadingLeads ? "Loading…" : "↻ Refresh"}
               </button>
             </div>
 
-            {loadingLeads && <p className="text-gray-400 animate-pulse text-sm">Loading leads\u2026</p>}
+            {loadingLeads && <p className="text-gray-400 animate-pulse text-sm">Loading leads…</p>}
 
             {/* Subscribers */}
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-800">
-                  \ud83d\udce7 Newsletter Subscribers
+                  📧 Newsletter Subscribers
                   <span className="ml-2 bg-pink-100 text-pink-700 text-xs px-2 py-0.5 rounded-full font-normal">{subscribers.length}</span>
                 </h3>
                 {subscribers.length > 0 && (
@@ -1128,7 +1177,7 @@ export default function AdminPage() {
                       a.click();
                     }}
                     className="text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg">
-                    \u2b07\ufe0f Export CSV
+                    ⬇️ Export CSV
                   </button>
                 )}
               </div>
@@ -1160,7 +1209,7 @@ export default function AdminPage() {
             <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                 <h3 className="font-semibold text-gray-800">
-                  \ud83d\udcac Contact Messages
+                  💬 Contact Messages
                   <span className="ml-2 bg-blue-100 text-blue-700 text-xs px-2 py-0.5 rounded-full font-normal">{contacts.length}</span>
                   {contacts.filter(c => !c.read).length > 0 && (
                     <span className="ml-1 bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-normal">
