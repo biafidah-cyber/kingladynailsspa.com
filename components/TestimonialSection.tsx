@@ -1,7 +1,33 @@
+import { createClient } from "@supabase/supabase-js";
 import { siteConfig } from "@/config/site";
 
-// Testimonials are configured in config/site.ts → siteConfig.testimonials
-const testimonials = siteConfig.testimonials;
+interface Testimonial {
+  name: string;
+  initials: string;
+  service: string;
+  rating: number;
+  text: string;
+}
+
+async function getTestimonials(): Promise<Testimonial[]> {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (url && key) {
+    try {
+      const sb = createClient(url, key);
+      const { data } = await sb
+        .from("testimonials")
+        .select("name, initials, service, rating, text")
+        .eq("featured", true)
+        .order("created_at", { ascending: false })
+        .limit(6);
+      if (data && data.length > 0) return data as Testimonial[];
+    } catch {
+      // fall through to static config
+    }
+  }
+  return siteConfig.testimonials;
+}
 
 function Stars({ count }: { count: number }) {
   return (
@@ -13,7 +39,9 @@ function Stars({ count }: { count: number }) {
   );
 }
 
-export default function TestimonialSection() {
+export default async function TestimonialSection() {
+  const testimonials = await getTestimonials();
+
   return (
     <section className="py-16 px-4 bg-pink-50" aria-label="Customer testimonials">
       <div className="max-w-5xl mx-auto">

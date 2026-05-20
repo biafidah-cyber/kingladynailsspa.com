@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 
-type Tab = "dashboard" | "generate" | "bulk" | "images" | "edit" | "analytics" | "leads" | "business";
+type Tab = "dashboard" | "generate" | "bulk" | "images" | "edit" | "analytics" | "leads" | "business" | "reviews" | "indexing";
 
 interface SavedPost {
   slug: string;
@@ -100,6 +100,27 @@ interface CommentEntry {
   body: string;
   submitted_at?: string;
   approved?: boolean;
+}
+
+interface ParsedReview {
+  name: string;
+  initials: string;
+  rating: number;
+  text: string;
+  service: string;
+  source: string;
+}
+
+interface DBReview extends ParsedReview {
+  id: string;
+  featured: boolean;
+  created_at: string;
+}
+
+interface IndexResult {
+  url: string;
+  status: "success" | "error";
+  message?: string;
 }
 
 interface SeoScore {
@@ -233,10 +254,13 @@ export default function AdminPage() {
     state:        "Nevada",
     zip:          "89130",
     email:        "hello@kingladynailsspa.com",
-    tagline:      "Las Vegas' Premier Nail Salon — Luxury Nails, Happy Clients",
-    priceRange:   "$$",
-    rating:       "4.8",
-    reviewCount:  "312",
+    tagline:         "Las Vegas' Premier Nail Salon — Luxury Nails, Happy Clients",
+    priceRange:      "$$",
+    rating:          "4.6",
+    reviewCount:     "1384",
+    yearEstablished: "2018",
+    category:        "Nail Salon",
+    schemaBizType:   "BeautySalon",
   });
   const [bizSaving, setBizSaving] = useState(false);
   const [bizMsg, setBizMsg] = useState("");
@@ -247,6 +271,22 @@ export default function AdminPage() {
   const [comments, setComments] = useState<CommentEntry[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
   const [expandedContact, setExpandedContact] = useState<string | null>(null);
+
+  // Reviews
+  const [reviewPaste, setReviewPaste] = useState("");
+  const [parsedReviews, setParsedReviews] = useState<ParsedReview[]>([]);
+  const [featuredReviews, setFeaturedReviews] = useState<DBReview[]>([]);
+  const [reviewMsg, setReviewMsg] = useState("");
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  // Google Indexing API
+  const [gscCredentials, setGscCredentials] = useState("");
+  const [gscSiteUrl, setGscSiteUrl] = useState("https://kingladynailsspa.com");
+  const [gscUrls, setGscUrls] = useState("");
+  const [gscUrlType, setGscUrlType] = useState<"URL_UPDATED" | "URL_DELETED">("URL_UPDATED");
+  const [indexResults, setIndexResults] = useState<IndexResult[]>([]);
+  const [indexLoading, setIndexLoading] = useState(false);
+  const [indexMsg, setIndexMsg] = useState("");
 
   // ── Dashboard ───────────────────────────────────────────────────────────────
   const loadPosts = useCallback(async () => {
@@ -496,6 +536,129 @@ export default function AdminPage() {
 
   useEffect(() => { if (tab === "leads") loadLeads(); }, [tab, loadLeads]);
 
+  const loadFeaturedReviews = useCallback(async () => {
+    setLoadingReviews(true);
+    try {
+      const res = await fetch("/api/testimonials", { headers: authHeaders() });
+      const data = await res.json();
+      setFeaturedReviews(data.testimonials ?? []);
+    } catch {
+      setFeaturedReviews([]);
+    } finally { setLoadingReviews(false); }
+  }, []);
+
+  useEffect(() => { if (tab === "reviews") loadFeaturedReviews(); }, [tab, loadFeaturedReviews]);
+
+  // ── Business Info auto-fill ─────────────────────────────────────────────────
+  async function handleAutoFillBiz() {
+    setBizSaving(true);
+    setBizMsg("🔍 Fetching from Google Places…");
+    try {
+      const res = await fetch("/api/google-business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ name: bizInfo.businessName, address: bizInfo.address, city: bizInfo.city, state: bizInfo.state }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setBizInfo(prev => ({
+        ...prev,
+        ...(data.phone           != null && { phone:           data.phone }),
+        ...(data.rating          != null && { rating:          String(data.rating) }),
+        ...(data.reviewCount     != null && { reviewCount:     String(data.reviewCount) }),
+        ...(data.priceRange      != null && { priceRange:      data.priceRange }),
+        ...(data.category        != null && { category:        data.category }),
+        ...(data.schemaBizType   != null && { schemaBizType:   data.schemaBizType }),
+        ...(data.yearEstablished != null && { yearEstablished: String(data.yearEstablished) }),
+      }));
+      setBizMsg(`✅ Auto-filled! ${data.rating}★ · ${Number(data.reviewCount).toLocaleString()} reviews · ${data.source}`);
+      setTimeout(() => setBizMsg(""), 6000);
+    } catch (e: unknown) {
+      setBizMsg(`❌ ${(e as Error).message}`);
+    } finally { setBizSaving(false); }
+  }
+
+  // ── Google Indexing ──────────────────────────────────────────────────────────
+  async function handleIndexSubmit() {
+    if (!gscCredentials.trim()) { setIndexMsg("❌ Paste your service account JSON first."); return; }
+    const urls = gscUrls.split("\n").map(u => u.trim()).filter(u => u.startsWith("http")).slice(0, 200);
+    if (urls.length === 0) { setIndexMsg("❌ Enter at least one valid URL starting with https://"); return; }
+    setIndexLoading(true); setIndexMsg(`Submitting ${urls.length} URL(s)…`); setIndexResults([]);
+    try {
+      let credentials: Record<string, string>;
+      try { credentials = JSON.parse(gscCredentials); }
+      catch { throw new Error("Invalid JSON — verify your service account file"); }
+      const res = await fetch("/api/google-indexing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ action: "submit", urls, type: gscUrlType, credentials }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setIndexResults(data.results ?? []);
+      const ok = (data.results ?? []).filter((r: IndexResult) => r.status === "success").length;
+      setIndexMsg(`✅ Done — ${ok}/${urls.length} accepted.`);
+    } catch (e: unknown) {
+      setIndexMsg(`❌ ${(e as Error).message}`);
+    } finally { setIndexLoading(false); }
+  }
+
+  async function handleAddSite() {
+    if (!gscCredentials.trim() || !gscSiteUrl.trim()) { setIndexMsg("❌ Enter credentials and site URL."); return; }
+    setIndexLoading(true); setIndexMsg("Adding site to Search Console…");
+    try {
+      let credentials: Record<string, string>;
+      try { credentials = JSON.parse(gscCredentials); }
+      catch { throw new Error("Invalid JSON — verify your service account file"); }
+      const res = await fetch("/api/google-indexing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ action: "add-site", siteUrl: gscSiteUrl, credentials }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setIndexMsg("✅ Site added! Now verify ownership in Google Search Console.");
+    } catch (e: unknown) {
+      setIndexMsg(`❌ ${(e as Error).message}`);
+    } finally { setIndexLoading(false); }
+  }
+
+  function parseGoogleReviews(raw: string): ParsedReview[] {
+    const lines = raw.split("\n").map(l => l.trim());
+    const TIME_RE = /^(Edited\s+)?(\d+|a|an)\s+(second|minute|hour|day|week|month|year)s?\s+ago$/i;
+    const SKIP_RE = /^(Photo \d+|…More|More)$|^\$[\d,]+/;
+    const BADGE_RE = /\d+\s+reviews?|Local Guide|\d+\s+photos?/i;
+    const results: ParsedReview[] = [];
+    const timePositions: number[] = [];
+    lines.forEach((line, idx) => { if (TIME_RE.test(line)) timePositions.push(idx); });
+    for (let t = 0; t < timePositions.length; t++) {
+      const timeIdx = timePositions[t];
+      let name = "";
+      for (let k = timeIdx - 1; k >= Math.max(0, timeIdx - 4); k--) {
+        const l = lines[k];
+        if (l && !BADGE_RE.test(l) && !TIME_RE.test(l) && l.length > 1 && l.length < 60 && !/^\d+$/.test(l)) {
+          name = l; break;
+        }
+      }
+      if (!name) continue;
+      let startIdx = timeIdx + 1;
+      if (startIdx < lines.length && /^\$/.test(lines[startIdx] ?? "")) startIdx++;
+      const nextTimeIdx = timePositions[t + 1] ?? (lines.length + 4);
+      const endIdx = nextTimeIdx - 3;
+      const textLines: string[] = [];
+      for (let k = startIdx; k < Math.min(endIdx, lines.length); k++) {
+        const l = lines[k];
+        if (l && !SKIP_RE.test(l)) textLines.push(l);
+      }
+      const text = textLines.join(" ").replace(/\s+/g, " ").replace(/…More$/i, "").trim();
+      if (text.length > 20) {
+        const initials = name.split(/\s+/).filter(w => /^[A-Za-z]/.test(w)).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+        results.push({ name, initials: initials || name.slice(0, 2).toUpperCase(), rating: 5, text, service: "Nail Service", source: "Google" });
+      }
+    }
+    return results;
+  }
+
   const tabs: { id: Tab; label: string }[] = [
     { id: "dashboard", label: "📊 Dashboard" },
     { id: "generate",  label: "✨ Generate Post" },
@@ -505,6 +668,8 @@ export default function AdminPage() {
     { id: "analytics", label: "📈 Analytics" },
     { id: "leads",     label: "📥 Leads" },
     { id: "business",  label: "🏪 Business Info" },
+    { id: "reviews",   label: "⭐ Reviews" },
+    { id: "indexing",  label: "📡 Indexing" },
   ];
 
   const doneCount = bulkJobs.filter(j => j.status === "done").length;
@@ -1373,11 +1538,20 @@ export default function AdminPage() {
                   <h2 className="text-xl font-bold text-gray-900">🏪 Business Information</h2>
                   <p className="text-sm text-gray-400 mt-0.5">NAP data used across all pages, schema, and SEO</p>
                 </div>
-                {bizMsg && (
-                  <div className={`text-sm px-4 py-2 rounded-lg ${
-                    bizMsg.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
-                  }`}>{bizMsg}</div>
-                )}
+                <div className="flex items-center gap-3 flex-wrap justify-end">
+                  <button
+                    onClick={handleAutoFillBiz}
+                    disabled={bizSaving}
+                    className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5 shrink-0"
+                  >
+                    {bizSaving && bizMsg.includes("Fetching") ? "🔄 Fetching…" : "🤖 Auto-fill from Google"}
+                  </button>
+                  {bizMsg && (
+                    <div className={`text-sm px-4 py-2 rounded-lg ${
+                      bizMsg.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                    }`}>{bizMsg}</div>
+                  )}
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1389,9 +1563,12 @@ export default function AdminPage() {
                   { key: "state",        label: "State",         placeholder: "Nevada" },
                   { key: "zip",          label: "ZIP Code",      placeholder: "89130" },
                   { key: "email",        label: "Email Address", placeholder: "hello@kingladynailsspa.com" },
-                  { key: "priceRange",   label: "Price Range",   placeholder: "$$" },
-                  { key: "rating",       label: "Star Rating",   placeholder: "4.8" },
-                  { key: "reviewCount",  label: "Review Count",  placeholder: "312" },
+                  { key: "priceRange",      label: "Price Range",         placeholder: "$, $$, $$$, $$$$" },
+                  { key: "rating",          label: "Star Rating",          placeholder: "4.6" },
+                  { key: "reviewCount",     label: "Review Count",         placeholder: "1384" },
+                  { key: "yearEstablished", label: "Year Established",     placeholder: "2018" },
+                  { key: "category",        label: "Business Category",    placeholder: "Nail Salon" },
+                  { key: "schemaBizType",   label: "Schema.org Biz Type",  placeholder: "BeautySalon" },
                 ] as { key: keyof typeof bizInfo; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
                   <div key={key}>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
@@ -1467,6 +1644,316 @@ export default function AdminPage() {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* REVIEWS */}
+        {tab === "reviews" && (
+          <div className="space-y-6">
+            {/* Import section */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">⭐ Import Google Reviews</h2>
+              <p className="text-sm text-gray-400 mb-4">Copy reviews from Google Maps (Ctrl+A in the reviews panel) and paste below. Click Extract to parse them.</p>
+              <textarea
+                value={reviewPaste}
+                onChange={e => setReviewPaste(e.target.value)}
+                rows={8}
+                placeholder={`Paste raw copied Google review text here...\n\nExample:\nDee Hanzy\n2 reviews\n5 months ago\nI have been going to the salon for the past 5 years...`}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono focus:ring-2 focus:ring-pink-400 focus:outline-none resize-y"
+              />
+              <div className="flex flex-wrap items-center gap-3 mt-3">
+                <button
+                  onClick={() => {
+                    const results = parseGoogleReviews(reviewPaste);
+                    setParsedReviews(results);
+                    setReviewMsg(results.length > 0 ? `✅ Extracted ${results.length} reviews` : "❌ No reviews found — check the paste format");
+                  }}
+                  disabled={!reviewPaste.trim()}
+                  className="bg-blue-600 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm"
+                >
+                  🔍 Extract Reviews
+                </button>
+                {parsedReviews.length > 0 && (
+                  <button
+                    onClick={() => { setParsedReviews([]); setReviewPaste(""); setReviewMsg(""); }}
+                    className="bg-gray-100 text-gray-700 px-4 py-2.5 rounded-lg hover:bg-gray-200 text-sm"
+                  >
+                    Clear
+                  </button>
+                )}
+                {reviewMsg && (
+                  <span className={`text-sm ${reviewMsg.startsWith("✅") ? "text-green-600" : "text-red-600"}`}>{reviewMsg}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Parsed reviews */}
+            {parsedReviews.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm p-6">
+                <h3 className="font-semibold text-gray-800 mb-4">Extracted Reviews ({parsedReviews.length}) — click ⭐ Feature to save to DB</h3>
+                <div className="space-y-3">
+                  {parsedReviews.map((r, i) => (
+                    <div key={i} className="border border-gray-100 rounded-xl p-4 bg-gray-50 flex gap-4 items-start">
+                      <div className="w-10 h-10 rounded-full bg-pink-200 text-pink-700 font-bold text-sm flex items-center justify-center shrink-0">
+                        {r.initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-semibold text-sm text-gray-900">{r.name}</span>
+                          <span className="text-yellow-500 text-xs">★★★★★</span>
+                        </div>
+                        <p className="text-sm text-gray-600 line-clamp-3">{r.text}</p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <label className="text-xs text-gray-500">Service:</label>
+                          <input
+                            value={r.service}
+                            onChange={e => {
+                              const updated = [...parsedReviews];
+                              updated[i] = { ...updated[i], service: e.target.value };
+                              setParsedReviews(updated);
+                            }}
+                            className="border border-gray-200 rounded px-2 py-0.5 text-xs w-44 focus:outline-none focus:ring-1 focus:ring-pink-300"
+                          />
+                        </div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          setReviewMsg("");
+                          try {
+                            const res = await fetch("/api/testimonials", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", ...authHeaders() },
+                              body: JSON.stringify({ ...r, featured: true }),
+                            });
+                            const data = await res.json();
+                            if (data.error) throw new Error(data.error);
+                            setReviewMsg(`✅ "${r.name}" featured!`);
+                            loadFeaturedReviews();
+                            setParsedReviews(prev => prev.filter((_, idx) => idx !== i));
+                            setTimeout(() => setReviewMsg(""), 3000);
+                          } catch (e: unknown) {
+                            setReviewMsg(`❌ ${(e as Error).message}`);
+                          }
+                        }}
+                        className="shrink-0 bg-pink-600 text-white text-xs px-3 py-1.5 rounded-lg hover:bg-pink-700 font-semibold"
+                      >
+                        ⭐ Feature
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Featured reviews from DB */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="font-semibold text-gray-800">⭐ Featured on Homepage ({featuredReviews.length}/6)</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">These override the static testimonials in site.ts when the Supabase table is active.</p>
+                </div>
+                <button onClick={loadFeaturedReviews} disabled={loadingReviews}
+                  className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 px-3 py-1 rounded-lg">
+                  {loadingReviews ? "Loading…" : "↻ Refresh"}
+                </button>
+              </div>
+              {featuredReviews.length === 0 && !loadingReviews && (
+                <div className="text-center py-8 text-gray-400">
+                  <p className="text-3xl mb-2">⭐</p>
+                  <p className="text-sm">No featured reviews yet.</p>
+                  <p className="text-xs mt-1">Paste Google reviews above and click ⭐ Feature to add them here.</p>
+                </div>
+              )}
+              {loadingReviews && <p className="text-sm text-gray-400 animate-pulse">Loading…</p>}
+              <div className="space-y-3">
+                {featuredReviews.map((r) => (
+                  <div key={r.id} className="border border-pink-100 rounded-xl p-4 bg-pink-50 flex gap-4 items-start">
+                    <div className="w-10 h-10 rounded-full bg-pink-300 text-pink-800 font-bold text-sm flex items-center justify-center shrink-0">
+                      {r.initials}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-sm text-gray-900">{r.name}</span>
+                        <span className="text-yellow-500 text-xs">★★★★★</span>
+                        <span className="text-xs bg-pink-200 text-pink-700 px-1.5 py-0.5 rounded-full">{r.service}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 line-clamp-2">{r.text}</p>
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Remove "${r.name}" from featured reviews?`)) return;
+                        try {
+                          await fetch(`/api/testimonials?id=${r.id}`, { method: "DELETE", headers: authHeaders() });
+                          setFeaturedReviews(prev => prev.filter(x => x.id !== r.id));
+                        } catch (e: unknown) {
+                          setReviewMsg(`❌ ${(e as Error).message}`);
+                        }
+                      }}
+                      className="shrink-0 text-red-400 hover:text-red-600 text-xs border border-red-200 px-2 py-1 rounded-lg hover:bg-red-50"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* INDEXING */}
+        {tab === "indexing" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <h2 className="text-xl font-bold text-gray-900 mb-1">📡 Google Search Console &amp; Indexing API</h2>
+              <p className="text-sm text-gray-500">Submit pages directly to Google for instant crawling. Default quota: 200 URLs/day.</p>
+            </div>
+
+            {/* Setup Guide */}
+            <div className="bg-blue-50 border border-blue-200 rounded-2xl p-5 text-sm text-blue-800">
+              <p className="font-semibold mb-2">⚙️ One-time Setup</p>
+              <ol className="list-decimal list-inside space-y-1 text-blue-700">
+                <li>Google Cloud Console → Library → Enable <strong>Web Search Indexing API</strong></li>
+                <li>IAM &amp; Admin → Service Accounts → Create account → Keys tab → Add Key → JSON → Download</li>
+                <li>Google Search Console → Settings → Users &amp; permissions → Add service account email as <strong>Owner</strong></li>
+                <li>Paste the downloaded JSON contents into the credentials field below</li>
+              </ol>
+            </div>
+
+            {/* Credentials */}
+            <div className="bg-white rounded-2xl shadow-sm p-6 space-y-3">
+              <h3 className="font-semibold text-gray-800">🔑 Service Account Credentials (JSON)</h3>
+              <p className="text-xs text-gray-400">Paste the full contents of your downloaded service account .json file.</p>
+              <textarea
+                value={gscCredentials}
+                onChange={e => setGscCredentials(e.target.value)}
+                rows={5}
+                placeholder={`{\n  "type": "service_account",\n  "project_id": "...",\n  "private_key": "-----BEGIN PRIVATE KEY-----\\n...",\n  "client_email": "your-account@project.iam.gserviceaccount.com"\n}`}
+                className="w-full border border-gray-300 rounded-lg px-4 py-3 text-xs font-mono focus:ring-2 focus:ring-blue-400 focus:outline-none resize-y bg-gray-50"
+              />
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                🔒 Credentials are sent over HTTPS, used server-side to sign requests only, and are never stored or logged.
+              </p>
+            </div>
+
+            {/* Two-column: Submit URLs + Add Site */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Submit URLs */}
+              <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+                <h3 className="font-semibold text-gray-800">📤 Submit URLs for Indexing</h3>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">URLs to submit (one per line, max 200/day)</label>
+                  <textarea
+                    value={gscUrls}
+                    onChange={e => setGscUrls(e.target.value)}
+                    rows={7}
+                    placeholder={"https://kingladynailsspa.com\nhttps://kingladynailsspa.com/about\nhttps://kingladynailsspa.com/services/manicure\nhttps://kingladynailsspa.com/blog/your-post-slug"}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-blue-400 focus:outline-none resize-y"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Quick-add pages</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { label: "Home",     url: "https://kingladynailsspa.com" },
+                      { label: "About",    url: "https://kingladynailsspa.com/about" },
+                      { label: "Contact",  url: "https://kingladynailsspa.com/contact" },
+                      { label: "Blog",     url: "https://kingladynailsspa.com/blog" },
+                      { label: "Services", url: "https://kingladynailsspa.com/services" },
+                    ].map(p => (
+                      <button key={p.url}
+                        onClick={() => setGscUrls(prev => prev ? prev.trimEnd() + "\n" + p.url : p.url)}
+                        className="text-xs bg-gray-100 hover:bg-blue-100 hover:text-blue-700 text-gray-600 px-2.5 py-1 rounded-full transition-colors">
+                        + {p.label}
+                      </button>
+                    ))}
+                    <button onClick={() => setGscUrls("")}
+                      className="text-xs bg-red-50 hover:bg-red-100 text-red-400 px-2.5 py-1 rounded-full">Clear</button>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Notification type</label>
+                  <div className="flex gap-4">
+                    {(["URL_UPDATED", "URL_DELETED"] as const).map(t => (
+                      <label key={t} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input type="radio" checked={gscUrlType === t} onChange={() => setGscUrlType(t)} className="accent-blue-600" />
+                        <span className={gscUrlType === t ? "font-semibold text-blue-700" : "text-gray-600"}>{t}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  onClick={handleIndexSubmit}
+                  disabled={indexLoading || !gscCredentials.trim()}
+                  className="w-full bg-blue-600 text-white font-bold py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-40 text-sm"
+                >
+                  {indexLoading ? "Submitting…" : "📡 Submit to Google"}
+                </button>
+              </div>
+
+              {/* Add Site */}
+              <div className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+                <h3 className="font-semibold text-gray-800">➕ Add Site to Search Console</h3>
+                <p className="text-xs text-gray-500">Register your domain so the service account can manage it programmatically. Verify ownership separately (DNS TXT record or HTML file).</p>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Site URL</label>
+                  <input
+                    value={gscSiteUrl}
+                    onChange={e => setGscSiteUrl(e.target.value)}
+                    placeholder="https://kingladynailsspa.com"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                  />
+                </div>
+                <div className="bg-gray-50 rounded-xl p-4 text-xs text-gray-500 space-y-1.5">
+                  <p className="font-medium text-gray-700 mb-1">📋 Ownership verification methods</p>
+                  <p>• <strong>DNS:</strong> Add a TXT record at your domain registrar</p>
+                  <p>• <strong>HTML file:</strong> Upload a google*.html file to your site root</p>
+                  <p>• <strong>HTML meta tag:</strong> Add a meta tag to your &lt;head&gt;</p>
+                  <p>• <strong>Google Analytics:</strong> Already connected to your site</p>
+                </div>
+                <button
+                  onClick={handleAddSite}
+                  disabled={indexLoading || !gscCredentials.trim() || !gscSiteUrl.trim()}
+                  className="w-full bg-gray-800 text-white font-semibold py-2.5 rounded-lg hover:bg-gray-900 disabled:opacity-40 text-sm"
+                >
+                  {indexLoading ? "Adding…" : "➕ Add Site to Search Console"}
+                </button>
+              </div>
+            </div>
+
+            {/* Status */}
+            {indexMsg && (
+              <div className={`text-sm p-4 rounded-xl border ${
+                indexMsg.startsWith("✅") ? "bg-green-50 text-green-700 border-green-200"
+                  : indexMsg.startsWith("❌") ? "bg-red-50 text-red-700 border-red-200"
+                  : "bg-blue-50 text-blue-700 border-blue-200"
+              }`}>{indexMsg}</div>
+            )}
+
+            {/* Results table */}
+            {indexResults.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+                <div className="p-4 border-b border-gray-100 flex items-center justify-between">
+                  <h3 className="font-semibold text-gray-800">Submission Results</h3>
+                  <div className="flex gap-4 text-xs font-semibold">
+                    <span className="text-green-600">{indexResults.filter(r => r.status === "success").length} accepted ✓</span>
+                    <span className="text-red-500">{indexResults.filter(r => r.status === "error").length} failed ✗</span>
+                  </div>
+                </div>
+                <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                  {indexResults.map((r, i) => (
+                    <div key={i} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50">
+                      <span className={`text-base mt-0.5 ${r.status === "success" ? "text-green-500" : "text-red-400"}`}>
+                        {r.status === "success" ? "✓" : "✗"}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-mono text-gray-700 truncate">{r.url}</p>
+                        {r.message && <p className="text-xs text-gray-400 mt-0.5">{r.message}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -51,8 +51,8 @@ export const siteConfig = {
   category:       "Nail Salon",
   schemaBizType:  "BeautySalon",
   priceRange:     "$$",
-  rating:         4.8,
-  reviewCount:    312,
+  rating:         4.6,
+  reviewCount:    1384,
   yearEstablished: 2018,
 
   // ── SERVICES (shows on homepage and feeds schema) ────────────────────────────
@@ -71,28 +71,49 @@ export const siteConfig = {
     { name: "Men's Pedicure",         description: "Pedicure tailored for men — nail trim, callus removal, and relaxing massage." },
   ],
 
-  // ── TESTIMONIALS (shown on homepage — update with real client reviews) ────────
+  // ── TESTIMONIALS (real Google reviews — also manageable via admin Reviews tab) ─
   testimonials: [
     {
-      name:     "Sarah M.",
-      initials: "SM",
-      service:  "Gel Nails",
+      name:     "Laura Cerrone Amarillas",
+      initials: "LC",
+      service:  "Nails & Pedicures",
       rating:   5,
-      text:     "Best nail salon I've found in Las Vegas! The staff is so friendly and my nails came out perfectly. I've already booked my next appointment.",
+      text:     "They are all amazing the owner really cares about making her customers happy. They do wonderful nails and pedicures. They go above and beyond to please you! Best nail salon in town.",
     },
     {
-      name:     "Jennifer R.",
-      initials: "JR",
-      service:  "Acrylic Full Set",
+      name:     "Dee Hanzy",
+      initials: "DH",
+      service:  "Regular Client — 5 Years",
       rating:   5,
-      text:     "Impeccable cleanliness and attention to detail. Worth every penny. This is the only place I trust for my acrylics now.",
+      text:     "I have been going to the salon for the past 5 years and I am never disappointed they always do exactly what I asked them to do which is really important. They are meticulous, they are perfection, they are customer focused — love them!",
     },
     {
-      name:     "Michelle T.",
-      initials: "MT",
-      service:  "Custom Nail Art",
+      name:     "Tiara Manibusan",
+      initials: "TM",
+      service:  "Nail Fills",
       rating:   5,
-      text:     "My nail art design came out exactly as I imagined. The technician listened carefully and executed it flawlessly. Will 100% be back.",
+      text:     "Miss Hannah is GREAT! I absolutely enjoy getting my nails done here regularly. Miss Hannah runs a tight ship and accommodates her clients as efficiently as possible. I am always pleased and satisfied with my experience.",
+    },
+    {
+      name:     "Yancell Mejia",
+      initials: "YM",
+      service:  "Mani & Pedicure",
+      rating:   5,
+      text:     "Lived in Las Vegas for over 9 years and had a hard time finding a nail salon. I absolutely loved my experience here! I brought my 4 year old daughter for her first mani and pedicure — the nail tech was very careful with her.",
+    },
+    {
+      name:     "Natasha Mestas",
+      initials: "NM",
+      service:  "Nails",
+      rating:   5,
+      text:     "Mya always does an incredible job on my nails! Always exactly how I want it! She doesn't over bulge the nail which is really hard to find at a nail salon.",
+    },
+    {
+      name:     "Dana Coursey",
+      initials: "DC",
+      service:  "Manicure",
+      rating:   5,
+      text:     "Mimi did a wonderful job on my nails. She evened them to a uniform, short length, cleaned up my cuticles and actually did a massage on my hands. I even made an appointment for 3 weeks and I never do that!",
     },
   ],
 
