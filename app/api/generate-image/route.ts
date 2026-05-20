@@ -9,10 +9,6 @@ function isAdminAuthorized(req: NextRequest): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json({ error: "Disabled in production" }, { status: 403 });
-  }
-
   if (!isAdminAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
