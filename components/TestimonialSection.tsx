@@ -1,5 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
 import { siteConfig } from "@/config/site";
+import { query } from "@/lib/neonDb";
 
 interface Testimonial {
   name: string;
@@ -10,21 +10,15 @@ interface Testimonial {
 }
 
 async function getTestimonials(): Promise<Testimonial[]> {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (url && key) {
-    try {
-      const sb = createClient(url, key);
-      const { data } = await sb
-        .from("testimonials")
-        .select("name, initials, service, rating, text")
-        .eq("featured", true)
-        .order("created_at", { ascending: false })
-        .limit(6);
-      if (data && data.length > 0) return data as Testimonial[];
-    } catch {
-      // fall through to static config
-    }
+  try {
+    const rows = await query<Testimonial>(
+      `SELECT name, initials, service, rating, text
+       FROM testimonials WHERE featured = true
+       ORDER BY created_at DESC LIMIT 6`
+    );
+    if (rows.length > 0) return rows;
+  } catch {
+    // fall through to static config
   }
   return siteConfig.testimonials;
 }
