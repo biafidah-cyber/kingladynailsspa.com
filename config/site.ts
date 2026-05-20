@@ -149,6 +149,36 @@ export const siteConfig = {
   postsPerPage: 10,
   defaultAuthor: "Editorial Team",
 
+  // ── ABOUT PAGE (fully drives about/page.tsx — no hardcoding there) ───────────
+  about: {
+    ctaTagline: "Walk-ins welcome · No appointment needed",
+    storyParagraphs: [
+      "King Lady Nails & Spa opened its doors in 2018 with one simple mission: to give every person who walked in the door a premium nail experience at a fair price. What started as a boutique salon on the north side of Las Vegas has grown into one of the most reviewed and trusted nail salons in the valley.",
+      "We built our reputation one client at a time. We listen to what you want, use only top-shelf products (OPI, CND Shellac, Gelish, Kiara Sky), and maintain the strictest sanitation standards in the industry. Every tool is autoclave-sterilized. Every station is fully disinfected between appointments. We don't cut corners — ever.",
+      "Today, our team of 12+ licensed technicians serves hundreds of loyal clients each week, from locals who've been with us since day one to first-timers looking for the best nail salon in Las Vegas. Whether it's a quick express manicure or an elaborate seasonal nail art design, we bring the same level of care and precision to every single service.",
+    ],
+    team: [
+      { name: "Hannah Nguyen",  role: "Owner & Master Nail Technician", bio: "20+ years experience, specializing in acrylic full sets and salon management.", emoji: "👑" },
+      { name: "Mya Le",         role: "Senior Nail Technician",          bio: "Expert in natural nail overlays and custom gel nail art designs.",             emoji: "💅" },
+      { name: "Mimi Tran",      role: "Nail Artist",                     bio: "Ombre, chrome powder, and 3D nail design — the creative force of the salon.",  emoji: "🎨" },
+    ],
+    certifications: [
+      "Nevada State Board of Cosmetology Licensed — all technicians",
+      "Current state licenses posted at front desk",
+      "Exceeds Nevada health & sanitation code requirements",
+      "Autoclave sterilization — every metal tool, every client",
+      "Single-use pedicure liners — changed with every pedicure",
+      "Professionally insured — general liability & professional liability",
+      "Annual continuing education program — all staff",
+    ],
+    values: [
+      { icon: "🧼", title: "Sanitation First",       body: "Every metal tool autoclave-sterilized. Fresh liner on every pedicure basin. We don't just meet Nevada code — we exceed it." },
+      { icon: "💎", title: "Premium Products Only",  body: "OPI, CND Shellac, Gelish, and Kiara Sky. We never use cheap knock-offs — your nails stay chip-free for weeks." },
+      { icon: "👩‍🎨", title: "Skilled & Licensed",    body: "Every technician is Nevada-state-licensed with hands-on ongoing education. You're in expert hands." },
+      { icon: "💬", title: "We Listen First",        body: "We spend time understanding exactly what you want before we begin. No guessing. No surprises." },
+    ],
+  },
+
   // ── CONTACT FORM ─────────────────────────────────────────────────────────────
   // Sign up free at https://formspree.io — set NEXT_PUBLIC_FORMSPREE_ID in .env.local
   formspreeId: process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "",

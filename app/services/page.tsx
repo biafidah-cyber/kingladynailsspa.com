@@ -5,7 +5,7 @@ import { services } from "@/config/services";
 
 export const metadata: Metadata = {
   title:       `Our Services | ${siteConfig.businessName}`,
-  description: `Explore all ${siteConfig.category} services at ${siteConfig.businessName} in ${siteConfig.city}. Manicures, pedicures, acrylic nails, gel nails, nail art, and waxing. Walk-ins welcome.`,
+  description: `Explore all ${siteConfig.category} services offered by ${siteConfig.businessName} in ${siteConfig.city}. Professional ${siteConfig.category.toLowerCase()} services at affordable prices.`,
   alternates:  { canonical: `${siteConfig.siteUrl}/services` },
   openGraph: {
     title:       `Our Services | ${siteConfig.businessName}`,
@@ -130,9 +130,9 @@ export default function ServicesPage() {
           </h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-left">
             {[
-              { icon: "⭐", title: `${siteConfig.rating}-Star Rated`, desc: `${siteConfig.reviewCount}+ verified reviews from happy clients in ${siteConfig.city}.` },
-              { icon: "🧼", title: "Clean & Safe", desc: "Fully sterilized tools and sanitized stations between every client." },
-              { icon: "🚶", title: "Walk-Ins Welcome", desc: "No appointment needed — come in any time during business hours." },
+              { icon: "⭐", title: `${siteConfig.rating}-Star Rated`,  desc: `${siteConfig.reviewCount.toLocaleString()}+ verified reviews from happy clients in ${siteConfig.city}.` },
+              { icon: "🧼", title: "Clean & Safe",                    desc: `Fully sterilized tools and sanitized stations — we exceed ${siteConfig.stateCode} health code.` },
+              { icon: "📍", title: `Serving ${siteConfig.city}`,      desc: `${siteConfig.yearEstablished ? `Trusted by the community since ${siteConfig.yearEstablished}.` : `Your local ${siteConfig.category.toLowerCase()} expert.`}` },
             ].map((item) => (
               <div key={item.title} className="bg-white rounded-2xl p-6 shadow-sm">
                 <div className="text-3xl mb-3">{item.icon}</div>

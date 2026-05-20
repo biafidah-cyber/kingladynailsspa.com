@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 import { siteConfig } from "@/config/site";
 import { marked } from "marked";
 import { rateLimit, getRateLimitIp } from "@/lib/rateLimit";
 
 // Lazy-initialize so build-time module evaluation doesn't throw without a key
-function getOpenAI() {
-  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY ?? "" });
+function getClaude() {
+  return new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY ?? "" });
 }
 
 function isAdminAuthorized(req: NextRequest): boolean {
@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
   if (!keyword) {
     return NextResponse.json({ error: "keyword is required" }, { status: 400 });
   }
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "OPENAI_API_KEY not set in .env.local" }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY not set in .env.local" }, { status: 500 });
   }
 
   const lsiKws = kwData?.related?.slice(0, 8).join(", ") || siteConfig.lsiKeywords.slice(0, 6).join(", ");
@@ -108,17 +108,15 @@ MANDATORY RULES — never skip any:
 START WRITING NOW:`;
 
   try {
-    const completion = await getOpenAI().chat.completions.create({
-      model:       "gpt-4o",
-      messages:    [
-        { role: "system", content: systemPrompt },
-        { role: "user",   content: userPrompt },
-      ],
-      max_tokens:  4096,
-      temperature: 0.7,
+    const message = await getClaude().messages.create({
+      model:      "claude-opus-4-5",
+      max_tokens: 8000,
+      system:     systemPrompt,
+      messages:   [{ role: "user", content: userPrompt }],
     });
 
-    const rawHtml = completion.choices[0].message.content || "";
+    const block = message.content[0];
+    const rawHtml = block.type === "text" ? block.text : "";
 
     // Extract title from <h1> tag
     const titleMatch = rawHtml.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);

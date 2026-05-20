@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 function isAdminAuthorized(req: NextRequest): boolean {
   const secret = process.env.ADMIN_SECRET;
@@ -22,8 +22,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!process.env.OPENAI_API_KEY) {
-    return NextResponse.json({ error: "OPENAI_API_KEY not configured" }, { status: 503 });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
   }
 
   const { html, keyword } = await req.json();
@@ -66,18 +66,13 @@ export async function POST(req: NextRequest) {
 
   const plainText = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 3000);
 
-  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-  const completion = await openai.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 800,
-    temperature: 0.3,
+  const message = await claude.messages.create({
+    model: "claude-haiku-3-5",
+    max_tokens: 1024,
+    system: "You are an SEO specialist who finds natural internal linking opportunities in blog articles. Return JSON only — no markdown, no explanation.",
     messages: [
-      {
-        role: "system",
-        content:
-          "You are an SEO specialist who finds natural internal linking opportunities in blog articles. Return JSON only.",
-      },
       {
         role: "user",
         content: `Article topic: "${keyword}"
@@ -108,7 +103,8 @@ Only include high-quality, natural links. Return [] if no good matches.`,
     ],
   });
 
-  const raw = completion.choices[0]?.message?.content?.trim() ?? "[]";
+  const block = message.content[0];
+  const raw = block.type === "text" ? block.text.trim() : "[]";
   let suggestions: unknown[] = [];
   try {
     const match = raw.match(/\[[\s\S]*\]/);

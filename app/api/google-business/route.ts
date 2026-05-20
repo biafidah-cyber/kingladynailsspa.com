@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import Anthropic from "@anthropic-ai/sdk";
 
 /** Maps Google Places types → { schemaBizType, category } */
 const PLACE_TYPE_MAP: Record<string, { schemaBizType: string; category: string }> = {
@@ -76,12 +76,17 @@ async function fetchFromGooglePlaces(
   };
 }
 
-async function fetchFromOpenAI(name: string, city: string, state: string) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error("No API key — set GOOGLE_PLACES_API_KEY or OPENAI_API_KEY");
+async function fetchFromClaude(name: string, city: string, state: string) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) throw new Error("No API key — set GOOGLE_PLACES_API_KEY or ANTHROPIC_API_KEY");
 
-  const client = new OpenAI({ apiKey });
-  const prompt = `You are a business research assistant with extensive knowledge of US local businesses.
+  const claude = new Anthropic({ apiKey });
+  const message = await claude.messages.create({
+    model: "claude-haiku-3-5",
+    max_tokens: 300,
+    messages: [{
+      role: "user",
+      content: `You are a business research assistant with extensive knowledge of US local businesses.
 Return accurate data for this business as JSON (no markdown, just raw JSON):
 
 Business: ${name}
@@ -98,17 +103,14 @@ Return exactly this structure:
   "phone": null
 }
 
-Use your knowledge of this specific business if you know it. Otherwise use realistic estimates for this business type in this city.`;
-
-  const completion = await client.chat.completions.create({
-    model: "gpt-4o-mini",
-    response_format: { type: "json_object" },
-    messages: [{ role: "user", content: prompt }],
-    max_tokens: 200,
+Use your knowledge of this specific business if you know it. Otherwise use realistic estimates for this business type in this city.`,
+    }],
   });
 
-  const data = JSON.parse(completion.choices[0].message.content ?? "{}");
-  return { ...data, source: "AI (OpenAI)" };
+  const block = message.content[0];
+  const text = block.type === "text" ? block.text : "{}";
+  const data = JSON.parse(text.replace(/```json|```/g, "").trim());
+  return { ...data, source: "AI (Claude)" };
 }
 
 export async function POST(req: NextRequest) {
@@ -124,10 +126,10 @@ export async function POST(req: NextRequest) {
   try {
     if (placesKey) {
       const data = await fetchFromGooglePlaces(name, address, city, state, placesKey);
-      // Use OpenAI only to fill yearEstablished if Places didn't provide it
-      if (!data.yearEstablished && process.env.OPENAI_API_KEY) {
+      // Use Claude only to fill yearEstablished if Places didn't provide it
+      if (!data.yearEstablished && process.env.ANTHROPIC_API_KEY) {
         try {
-          const aiData = await fetchFromOpenAI(name, city, state);
+          const aiData = await fetchFromClaude(name, city, state);
           data.yearEstablished = aiData.yearEstablished ?? null;
         } catch { /* non-blocking */ }
       }
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Fallback: use OpenAI
-    const data = await fetchFromOpenAI(name, city, state);
+    const data = await fetchFromClaude(name, city, state);
     return NextResponse.json(data);
   } catch (e: unknown) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
