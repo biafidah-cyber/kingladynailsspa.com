@@ -1,12 +1,12 @@
 import { siteConfig } from "@/config/site";
 
 const badges = [
-  { icon: "⭐", value: `${siteConfig.rating}`, label: "Google Rating" },
-  { icon: "👥", value: `${siteConfig.reviewCount}+`, label: "Happy Clients" },
+  { icon: "⭐", value: `${siteConfig.rating}`,              label: "Google Rating" },
+  { icon: "👥", value: `${siteConfig.reviewCount}+`,        label: "Happy Clients" },
   { icon: "📅", value: `Since ${siteConfig.yearEstablished}`, label: "Est." },
-  { icon: "✅", value: "Licensed", label: "& Insured" },
-  { icon: "🏆", value: "Award", label: "Winning Service" },
-  { icon: "🧼", value: "Hospital", label: "Grade Sanitation" },
+  { icon: "✅", value: "Licensed",                           label: "& Insured" },
+  { icon: "🏆", value: `Top Rated`,                         label: `${siteConfig.city} ${siteConfig.category}` },
+  { icon: "🔒", value: "Certified",                          label: "Professionals" },
 ];
 
 export default function TrustBadges() {

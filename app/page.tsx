@@ -93,7 +93,7 @@ export default function HomePage() {
                 key={service.name}
                 className="border border-pink-100 rounded-2xl p-6 hover:shadow-lg hover:border-pink-300 transition-all group"
               >
-                <div className="text-3xl mb-3">💅</div>
+                <div className="text-3xl mb-3">✅</div>
                 <h3 className="font-bold text-gray-900 text-lg mb-2 group-hover:text-pink-600 transition-colors">
                   {service.name} in {siteConfig.city}
                 </h3>
@@ -111,16 +111,11 @@ export default function HomePage() {
             Why {siteConfig.city} Chooses {siteConfig.businessName}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[
-              { icon: "🏆", title: "Top Rated", desc: `${siteConfig.rating}★ average across ${siteConfig.reviewCount}+ Google reviews` },
-              { icon: "🎨", title: "Expert Nail Artists", desc: "Trained technicians with 5+ years experience in nail design" },
-              { icon: "✨", title: "Premium Products", desc: "OPI, Essie, CND Shellac — top brands only" },
-              { icon: "💰", title: "Fair Prices", desc: "Competitive pricing with no hidden fees — transparent menu" },
-            ].map((item) => (
+            {siteConfig.about.values.map((item) => (
               <div key={item.title} className="bg-white rounded-2xl p-6 text-center shadow-sm">
                 <div className="text-4xl mb-3">{item.icon}</div>
                 <h3 className="font-bold text-gray-900 mb-2">{item.title}</h3>
-                <p className="text-gray-500 text-sm">{item.desc}</p>
+                <p className="text-gray-500 text-sm">{item.body}</p>
               </div>
             ))}
           </div>

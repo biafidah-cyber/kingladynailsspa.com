@@ -141,7 +141,7 @@ export default function LocationPage({ params }: Props) {
             Our Services in {loc.name}
           </h2>
           <p className="text-center text-gray-500 mb-10">
-            Everything you need — from everyday manicures to special occasion nail art.
+            Professional {siteConfig.category.toLowerCase()} services for every need and occasion.
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             {siteConfig.services.map((service) => (
@@ -161,7 +161,7 @@ export default function LocationPage({ params }: Props) {
             Ready to visit us from {loc.city}?
           </h2>
           <p className="text-pink-100 mb-8">
-            Walk-ins welcome! Or call ahead to guarantee your preferred technician.
+            Walk-ins welcome! Or call ahead to reserve your preferred specialist.
           </p>
           <a
             href={`tel:${siteConfig.phone.replace(/\D/g, "")}`}
