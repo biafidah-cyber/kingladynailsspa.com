@@ -183,34 +183,221 @@ Nail art pricing varies by complexity and the number of nails. Simple accent nai
     image: "",
   },
   {
-    slug:        "waxing",
-    name:        "Waxing",
-    emoji:       "🌸",
-    tagline:     "Eyebrow, Lip & Body Waxing with Gentle Formula",
-    description: "Professional waxing services at King Lady Nails & Spa in Las Vegas. Eyebrow shaping, lip, chin, and body waxing. Gentle formula for all skin types.",
-    body: `Smooth, hair-free skin starts with a professional wax. At King Lady Nails & Spa, we offer a full range of waxing services for the face and body, performed by experienced estheticians using a gentle wax formula suitable for sensitive skin.
+    slug:        "dip-powder-nails",
+    name:        "Dip Powder Nails",
+    emoji:       "✨",
+    tagline:     "Odorless, Long-Lasting Dip Powder Nails in Las Vegas",
+    description: "Dip powder nails at King Lady Nails & Spa in Las Vegas. Stronger than gel, odorless, and chip-free for 3–5 weeks. Starting at $45.",
+    body: `Dip powder nails are the fastest-growing nail trend — and for good reason. The dip system uses a bonding powder that's stronger than traditional gel, completely odorless, and can last 3–5 weeks without chipping.
 
-Our most popular waxing service is eyebrow shaping — we sculpt your brows to frame your face perfectly, removing unwanted hair cleanly and precisely. Most clients are in and out in under 10 minutes.
+At King Lady Nails & Spa, our dip powder service includes nail prep, base coat application, color dipping (2–3 coats), activator, and a protective top coat. The result is a smooth, even finish that looks and feels natural.
 
-We also offer lip and chin waxing, and select body waxing services. All waxing services are performed in a clean, private setting with fresh wax and applicators for every client. We never double-dip.
+Choose from our extensive color library — neutrals, nudes, vivid brights, and seasonal collections. We also offer ombre and two-tone dip options for added flair.
 
-Waxing results last 3–6 weeks. With regular waxing, hair grows back finer and sparser over time.`,
-    price:    "Eyebrow wax from $12 · Lip wax from $8",
-    duration: "10–30 minutes",
+Dip powder is also excellent for nail health. It strengthens thin or brittle nails and doesn't require UV light to cure, making it a great alternative if you prefer to avoid gel lamps.`,
+    price:    "Starting at $45",
+    duration: "45–60 minutes",
     benefits: [
-      "Eyebrow shaping, lip, chin & body waxing",
-      "Gentle formula — suitable for sensitive skin",
-      "Results last 3–6 weeks",
-      "No double-dipping — fresh applicator every time",
-      "Quick service — eyebrow wax in under 10 minutes",
+      "Lasts 3–5 weeks without chipping",
+      "No UV light needed — healthier for nails",
+      "Stronger than traditional gel polish",
+      "Odorless — no harsh fumes",
+      "Huge color selection including ombre options",
     ],
     faqs: [
-      { q: "Does waxing hurt?", a: "There is a brief sting, but most clients find it very manageable. The discomfort is over in seconds and fades quickly after." },
-      { q: "How long does waxing last?", a: "Results typically last 3–6 weeks. With regular waxing, hair grows back finer and slower over time." },
-      { q: "Can I wax if I have sensitive skin?", a: "Yes — we use a gentle wax formula designed for sensitive skin. Please let your technician know about any sensitivities or skin conditions." },
-      { q: "How long does hair need to be before waxing?", a: "Hair should be at least ¼ inch (about 6mm) long for the wax to grip it. About 2–3 weeks of growth after shaving is ideal." },
+      { q: "Is dip powder better than gel?", a: "Dip powder typically lasts longer (3–5 weeks vs 2–3 for gel) and doesn't require UV curing. Many clients prefer it for nail health." },
+      { q: "Does dip powder damage nails?", a: "Done properly with professional removal, dip powder is gentle on nails. We always use professional soak-off removal — never pry or file aggressively." },
+      { q: "Can I get dip powder with extensions?", a: "Yes — we can apply dip powder over natural nails or over tips/forms for added length." },
+      { q: "How do I remove dip powder nails?", a: "Soak in acetone for 10–15 minutes. We recommend professional removal to keep your natural nails healthy." },
     ],
-    keywords: ["waxing Las Vegas", "eyebrow waxing Las Vegas", "body waxing Las Vegas NV", "eyebrow shaping Las Vegas"],
+    keywords: ["dip powder nails Las Vegas", "dip nails Las Vegas", "SNS nails Las Vegas", "powder nails Las Vegas NV"],
+    image: "",
+  },
+  {
+    slug:        "gel-nail-extensions",
+    name:        "Gel Nail Extensions",
+    emoji:       "💎",
+    tagline:     "Natural-Looking Gel Extensions for Extra Length",
+    description: "Gel nail extensions at King Lady Nails & Spa in Las Vegas. Flexible, natural-feeling length with a flawless gel finish. Starting at $55.",
+    body: `Gel nail extensions give you beautiful length without the bulk of traditional acrylics. At King Lady Nails & Spa, we sculpt gel extensions using soft gel or hard gel over forms or tips, creating a natural, flexible nail that moves with your hand.
+
+The result is a nail that looks and feels almost like your own — just longer, stronger, and perfectly shaped. We offer every shape: square, round, oval, almond, coffin, and stiletto.
+
+Gel extensions are cured under a UV/LED lamp at each stage, bonding directly to your natural nail for exceptional hold. Finished with gel color of your choice, your nails will be salon-perfect for 3–4 weeks.
+
+Ideal for clients who want length and strength without the weight or odor of acrylic, gel extensions are our most natural-looking nail enhancement service.`,
+    price:    "Starting at $55",
+    duration: "60–90 minutes",
+    benefits: [
+      "Natural, flexible feel — lighter than acrylic",
+      "Any shape: coffin, almond, stiletto, oval",
+      "No strong odor — gentle formula",
+      "Lasts 3–4 weeks with fills",
+      "Compatible with gel, dip, or regular polish",
+    ],
+    faqs: [
+      { q: "What is the difference between gel extensions and acrylic?", a: "Gel extensions are lighter, more flexible, and odorless compared to acrylic. They're cured under UV/LED and look more natural." },
+      { q: "How long do gel extensions last?", a: "With proper care, gel extensions last 3–4 weeks before needing a fill or new set." },
+      { q: "Can I get gel extensions on very short nails?", a: "Yes — we use forms to build extensions over even very short nails, adding length safely." },
+      { q: "Do gel extensions damage natural nails?", a: "With professional application and removal, the damage is minimal. We always use safe removal techniques with no aggressive filing." },
+    ],
+    keywords: ["gel nail extensions Las Vegas", "nail extensions Las Vegas", "gel extensions Las Vegas NV", "long nails Las Vegas"],
+    image: "",
+  },
+  {
+    slug:        "nail-extensions",
+    name:        "Nail Extensions",
+    emoji:       "💅",
+    tagline:     "Custom Nail Extensions — Any Length, Shape & Style",
+    description: "Nail extensions in Las Vegas at King Lady Nails & Spa. Acrylic, gel, or dip — any shape and length. Expert technicians, stunning results.",
+    body: `Nail extensions let you achieve any length or shape you've ever wanted. At King Lady Nails & Spa, we offer extensions in acrylic, gel, and dip powder — so you can choose the system that best suits your lifestyle and preferences.
+
+Our technicians are skilled in sculpting extensions using both tips and forms, giving you precise control over length and shape. Whether you want a dramatic stiletto, a trendy coffin, a classic square, or a natural oval, we'll create the perfect set.
+
+All extension services include nail prep, tip or form application, your chosen enhancement system, shaping, buffing, and your choice of color finish. We use professional-grade products for maximum durability and a flawless look.
+
+Regular fills are recommended every 2–3 weeks to maintain the appearance and structural integrity of your extensions.`,
+    price:    "Starting at $45",
+    duration: "60–90 minutes",
+    benefits: [
+      "Acrylic, gel, or dip powder available",
+      "All shapes and lengths — coffin, almond, stiletto",
+      "Tips or sculpted forms for precise results",
+      "Choice of polish, gel, or dip color finish",
+      "Fills available every 2–3 weeks",
+    ],
+    faqs: [
+      { q: "What types of nail extensions do you offer?", a: "We offer acrylic extensions, gel extensions, and dip powder extensions. Our team will recommend the best option for your nail goals." },
+      { q: "How often do I need fills?", a: "Fills are recommended every 2–3 weeks as your natural nails grow. Full removal and resets every 2–3 months." },
+      { q: "Which extension type lasts longest?", a: "Acrylic extensions are typically the most durable. Gel extensions look more natural. Dip powder is odorless with excellent longevity." },
+      { q: "Can I shower and swim with nail extensions?", a: "Yes — our extensions are water-resistant. Extended soaking (long baths, hot tubs) can loosen them over time, so we recommend wearing gloves for chores." },
+    ],
+    keywords: ["nail extensions Las Vegas", "fake nails Las Vegas", "acrylic extensions Las Vegas", "gel extensions Las Vegas NV"],
+    image: "",
+  },
+  {
+    slug:        "manicure-and-pedicure",
+    name:        "Manicure and Pedicure",
+    emoji:       "🌸",
+    tagline:     "The Ultimate Mani-Pedi Combo in Las Vegas",
+    description: "Mani-pedi combo at King Lady Nails & Spa in Las Vegas. Full manicure and spa pedicure together — the perfect self-care treat. Starting at $55.",
+    body: `The classic mani-pedi is the ultimate beauty treat — and at King Lady Nails & Spa, we make it an experience you'll want to repeat every month.
+
+Our combo service includes a full manicure: nail shaping, cuticle care, hand exfoliation, hand massage, and polish of your choice. Combined with a full spa pedicure: warm soak, callus removal, nail shaping, cuticle care, foot scrub, calf massage, and polish.
+
+Choose from classic polish, gel, or shellac for either service. Our cozy pedicure chairs and relaxing atmosphere make this the perfect way to unwind after a long week, celebrate a special occasion, or treat yourself just because.
+
+Walk-ins are welcome, but we recommend booking ahead for the combo service to ensure two technicians can serve you simultaneously and get you out faster.`,
+    price:    "Starting at $55",
+    duration: "75–105 minutes",
+    benefits: [
+      "Full manicure + full spa pedicure in one visit",
+      "Hand and calf massage included",
+      "Gel upgrade available for both services",
+      "Relaxing pedicure chairs with massage function",
+      "Perfect for special occasions or regular self-care",
+    ],
+    faqs: [
+      { q: "How long does a mani-pedi take?", a: "Our combo service takes 75–105 minutes. With two technicians working simultaneously, we can often finish faster." },
+      { q: "Can I get gel on both my hands and feet?", a: "Yes — we offer gel or shellac upgrades for both the manicure and pedicure portions." },
+      { q: "Should I book ahead for a mani-pedi?", a: "We recommend booking ahead, especially on weekends. Walk-ins are welcome but may have a wait." },
+      { q: "What polish brands do you use?", a: "We carry OPI, Essie, CND Shellac, Gelish, and more — with hundreds of shades to choose from." },
+    ],
+    keywords: ["mani pedi Las Vegas", "manicure pedicure Las Vegas", "mani pedi combo Las Vegas NV", "nail salon combo Las Vegas"],
+    image: "",
+  },
+  {
+    slug:        "spa-pedicure",
+    name:        "Spa Pedicure",
+    emoji:       "🛁",
+    tagline:     "Luxury Spa Pedicure with Extended Massage & Paraffin",
+    description: "Luxury spa pedicure at King Lady Nails & Spa in Las Vegas. Extended massage, paraffin wax, and premium polish. The ultimate foot treatment.",
+    body: `Our Spa Pedicure is the most indulgent foot treatment we offer — and the perfect escape from a busy Las Vegas day. It's everything in our classic pedicure, elevated with premium add-ons and extra relaxation time.
+
+The spa pedicure includes a warm aromatherapy soak, thorough callus removal, nail shaping and cuticle care, a sugar scrub exfoliation, hot stone massage of the feet and calves, a nourishing paraffin wax dip for deep moisturizing, and your choice of polish.
+
+Las Vegas's dry desert heat is notorious for leaving skin cracked and rough. Our spa pedicure is specifically designed to reverse that damage, leaving your feet silky soft with long-lasting moisture.
+
+Treat yourself, gift it to someone special, or make it your monthly ritual. A full spa pedicure from King Lady Nails & Spa is an experience that stays with you.`,
+    price:    "Starting at $55",
+    duration: "60–75 minutes",
+    benefits: [
+      "Aromatherapy soak + thorough callus removal",
+      "Extended hot stone foot and calf massage",
+      "Sugar scrub + paraffin wax deep moisturizing",
+      "Nourishing treatment for Las Vegas dry skin",
+      "Choice of regular or gel polish finish",
+    ],
+    faqs: [
+      { q: "What's the difference between a regular pedicure and a spa pedicure?", a: "The spa pedicure adds extended massage time, a sugar scrub exfoliation, and a paraffin wax dip for deep moisturizing — not included in the basic pedicure." },
+      { q: "Is paraffin wax safe for everyone?", a: "Paraffin is safe for most people. Those with very sensitive skin or open wounds should skip the paraffin dip — please let your technician know." },
+      { q: "How long does a spa pedicure last?", a: "The service takes 60–75 minutes. Results (smooth skin, polished nails) last 3–4 weeks with regular maintenance." },
+      { q: "Do I need to bring anything?", a: "Just yourself! We provide everything. Wearing or bringing open-toed shoes or sandals is recommended so your polish stays fresh." },
+    ],
+    keywords: ["spa pedicure Las Vegas", "luxury pedicure Las Vegas", "paraffin pedicure Las Vegas NV", "hot stone pedicure Las Vegas"],
+    image: "",
+  },
+  {
+    slug:        "nail-polish",
+    name:        "Nail Polish",
+    emoji:       "💅",
+    tagline:     "Express Polish Change — Hundreds of Shades",
+    description: "Quick nail polish change at King Lady Nails & Spa in Las Vegas. OPI, Essie, Gelish, and more — hundreds of shades. Starting at $12.",
+    body: `Sometimes all you need is a fresh coat of color. Our express nail polish service is perfect when you want a quick refresh without the full manicure treatment.
+
+We carry hundreds of shades from top brands including OPI, Essie, CND, Gelish, and more — from timeless nudes and classic reds to seasonal trends and bold brights. Our technicians apply polish with precision for clean, even coverage every time.
+
+The express service includes nail cleaning, light file if needed, base coat, two color coats, and top coat. Quick, clean, and beautiful.
+
+Want something longer-lasting? Upgrade to gel polish for a chip-free finish that lasts 2–3 weeks with the same quick application time.`,
+    price:    "Starting at $12",
+    duration: "15–20 minutes",
+    benefits: [
+      "Hundreds of shades — OPI, Essie, Gelish, CND",
+      "Quick service — in and out in 15–20 minutes",
+      "Gel polish upgrade available for longer wear",
+      "Clean, precise application every time",
+      "Walk-ins always welcome",
+    ],
+    faqs: [
+      { q: "How long does nail polish last?", a: "Regular polish lasts 5–7 days. Gel polish lasts 2–3 weeks without chipping." },
+      { q: "What brands of polish do you carry?", a: "We carry OPI, Essie, CND, Gelish, and several other professional brands with hundreds of shades." },
+      { q: "Can I bring my own nail polish?", a: "Yes — you're welcome to bring your own polish. We'll apply it for you at the standard express polish price." },
+      { q: "Do you offer gel polish?", a: "Yes — gel polish upgrade is available for both hands and feet. It lasts 2–3 weeks and is cured under a UV/LED lamp." },
+    ],
+    keywords: ["nail polish Las Vegas", "polish change Las Vegas", "nail color Las Vegas NV", "OPI nails Las Vegas"],
+    image: "",
+  },
+  {
+    slug:        "mens-pedicure",
+    name:        "Men's Pedicure",
+    emoji:       "🦶",
+    tagline:     "Pedicure for Men — Nail Care, Callus Removal & Massage",
+    description: "Men's pedicure at King Lady Nails & Spa in Las Vegas. Nail trim, callus removal, and relaxing massage — no polish required. Starting at $35.",
+    body: `Foot care isn't just for women. At King Lady Nails & Spa, our Men's Pedicure is designed for guys who want clean, well-maintained feet without the fuss.
+
+The service includes a warm soak, nail trimming and shaping, cuticle care, thorough callus and dead skin removal, a relaxing foot and calf massage, and a moisturizing lotion application. No colored polish required — we finish with a clear buff for a clean, natural look.
+
+Las Vegas men are on their feet — whether working, gaming, or hitting the Strip. Our pedicure relieves foot fatigue, removes painful calluses, and leaves your feet feeling renewed.
+
+A 45-minute men's pedicure is one of the most underrated forms of self-care. Our team is professional, efficient, and completely judgment-free. Many of our male clients make it a monthly habit.`,
+    price:    "Starting at $35",
+    duration: "45–60 minutes",
+    benefits: [
+      "Nail trim, shaping & cuticle care",
+      "Thorough callus and dead skin removal",
+      "Relaxing foot and calf massage",
+      "No colored polish — clean natural buff finish",
+      "Judgment-free, professional service",
+    ],
+    faqs: [
+      { q: "Do men get pedicures?", a: "Absolutely — foot health matters for everyone. Many men get regular pedicures for callus removal, nail care, and foot relaxation." },
+      { q: "Will there be colored polish?", a: "Not unless you want it. Our men's pedicure finishes with a clear buff for a clean, natural appearance." },
+      { q: "How long does a men's pedicure take?", a: "About 45–60 minutes. It's one of the most relaxing 45 minutes you'll spend." },
+      { q: "How often should men get a pedicure?", a: "Every 4–6 weeks is ideal for maintaining healthy feet, preventing calluses, and keeping nails trimmed properly." },
+    ],
+    keywords: ["mens pedicure Las Vegas", "men pedicure Las Vegas NV", "male pedicure Las Vegas", "foot care Las Vegas men"],
     image: "",
   },
 ];
+

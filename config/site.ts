@@ -27,20 +27,20 @@ export const siteConfig = {
   ],
 
   // ── LOCATION (must be 100% consistent everywhere — NAP) ─────────────────────
-  address:      "3500 S Las Vegas Blvd Suite 101",
+  address:      "6241 N Decatur Blvd #130",
   city:         "Las Vegas",
   state:        "Nevada",
   stateCode:    "NV",
   country:      "US",
   countryCode:  "US",
-  zip:          "89109",
-  phone:        "(702) 750-9000",
+  zip:          "89130",
+  phone:        "(702) 750-9050",
   email:        "hello@kingladynailsspa.com",
-  mapEmbedUrl:  "https://maps.google.com/?q=King+Lady+Nails+Spa+Las+Vegas",
+  mapEmbedUrl:  "https://maps.google.com/?q=6241+N+Decatur+Blvd+%23130+Las+Vegas+NV+89130",
 
   // ── GEO COORDINATES (for LocalBusiness schema — improves Maps ranking) ───────
-  lat:          "36.1699",
-  lng:          "-115.1398",
+  lat:          "36.2724",
+  lng:          "-115.2042",
 
   // ── DOMAIN & URLS ────────────────────────────────────────────────────────────
   siteUrl:      "https://kingladynailsspa.com",
@@ -57,12 +57,18 @@ export const siteConfig = {
 
   // ── SERVICES (shows on homepage and feeds schema) ────────────────────────────
   services: [
-    { name: "Manicure",        description: "Classic, gel, and shellac manicures with premium nail polish brands." },
-    { name: "Pedicure",        description: "Relaxing spa pedicures with callus removal and hot stone massage." },
-    { name: "Acrylic Nails",   description: "Full sets and fills — any length, shape, or custom design." },
-    { name: "Gel Nails",       description: "Long-lasting gel nails that stay chip-free for 2–3 weeks." },
-    { name: "Nail Art",        description: "Hand-painted nail art, ombre, chrome powder, and seasonal designs." },
-    { name: "Waxing",          description: "Eyebrow, lip, and full body waxing with gentle wax formula." },
+    { name: "Manicure",               description: "Classic, gel, and shellac manicures with premium nail polish brands." },
+    { name: "Pedicure",               description: "Relaxing spa pedicures with callus removal and hot stone massage." },
+    { name: "Spa Pedicure",           description: "Luxury spa pedicure with extended massage, scrub, and paraffin treatment." },
+    { name: "Manicure and Pedicure",  description: "The ultimate combo — full manicure and pedicure service together." },
+    { name: "Acrylic Nails",          description: "Full sets and fills — any length, shape, or custom design." },
+    { name: "Dip Powder Nails",       description: "Odorless, long-lasting dip powder nails that strengthen natural nails." },
+    { name: "Gel Nails",              description: "Long-lasting gel nails that stay chip-free for 2–3 weeks." },
+    { name: "Gel Nail Extensions",    description: "Gel extensions for extra length with a natural, flexible feel." },
+    { name: "Nail Extensions",        description: "Custom nail extensions in any length and shape using acrylic or gel." },
+    { name: "Nail Art",               description: "Hand-painted nail art, ombre, chrome powder, and seasonal designs." },
+    { name: "Nail Polish",            description: "Express polish change in hundreds of shades — OPI, Essie, and more." },
+    { name: "Men's Pedicure",         description: "Pedicure tailored for men — nail trim, callus removal, and relaxing massage." },
   ],
 
   // ── TESTIMONIALS (shown on homepage — update with real client reviews) ────────

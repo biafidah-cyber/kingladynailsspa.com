@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { signOut, useSession } from "next-auth/react";
 
-type Tab = "dashboard" | "generate" | "bulk" | "images" | "edit" | "analytics" | "leads";
+type Tab = "dashboard" | "generate" | "bulk" | "images" | "edit" | "analytics" | "leads" | "business";
 
 interface SavedPost {
   slug: string;
@@ -223,6 +223,23 @@ export default function AdminPage() {
   // Analytics
   const [analytics, setAnalytics] = useState<{ configured: boolean; summary?: AnalyticsSummary; topPages?: TopPage[]; error?: string; message?: string } | null>(null);
   const [loadingAnalytics, setLoadingAnalytics] = useState(false);
+
+  // Business Info
+  const [bizInfo, setBizInfo] = useState({
+    businessName: "King Lady Nails & Spa",
+    phone:        "(702) 750-9050",
+    address:      "6241 N Decatur Blvd #130",
+    city:         "Las Vegas",
+    state:        "Nevada",
+    zip:          "89130",
+    email:        "hello@kingladynailsspa.com",
+    tagline:      "Las Vegas' Premier Nail Salon — Luxury Nails, Happy Clients",
+    priceRange:   "$$",
+    rating:       "4.8",
+    reviewCount:  "312",
+  });
+  const [bizSaving, setBizSaving] = useState(false);
+  const [bizMsg, setBizMsg] = useState("");
 
   // Leads (subscribers + contacts + comments)
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
@@ -487,6 +504,7 @@ export default function AdminPage() {
     { id: "edit",      label: "✏️ Edit Post" },
     { id: "analytics", label: "📈 Analytics" },
     { id: "leads",     label: "📥 Leads" },
+    { id: "business",  label: "🏪 Business Info" },
   ];
 
   const doneCount = bulkJobs.filter(j => j.status === "done").length;
@@ -1342,6 +1360,112 @@ export default function AdminPage() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* BUSINESS INFO */}
+        {tab === "business" && (
+          <div className="space-y-6">
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">🏪 Business Information</h2>
+                  <p className="text-sm text-gray-400 mt-0.5">NAP data used across all pages, schema, and SEO</p>
+                </div>
+                {bizMsg && (
+                  <div className={`text-sm px-4 py-2 rounded-lg ${
+                    bizMsg.startsWith("✅") ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"
+                  }`}>{bizMsg}</div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {([
+                  { key: "businessName", label: "Business Name", placeholder: "King Lady Nails & Spa" },
+                  { key: "phone",        label: "Phone Number",  placeholder: "(702) 750-9050" },
+                  { key: "address",      label: "Street Address", placeholder: "6241 N Decatur Blvd #130" },
+                  { key: "city",         label: "City",          placeholder: "Las Vegas" },
+                  { key: "state",        label: "State",         placeholder: "Nevada" },
+                  { key: "zip",          label: "ZIP Code",      placeholder: "89130" },
+                  { key: "email",        label: "Email Address", placeholder: "hello@kingladynailsspa.com" },
+                  { key: "priceRange",   label: "Price Range",   placeholder: "$$" },
+                  { key: "rating",       label: "Star Rating",   placeholder: "4.8" },
+                  { key: "reviewCount",  label: "Review Count",  placeholder: "312" },
+                ] as { key: keyof typeof bizInfo; label: string; placeholder: string }[]).map(({ key, label, placeholder }) => (
+                  <div key={key}>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+                    <input
+                      value={bizInfo[key]}
+                      onChange={e => setBizInfo(prev => ({ ...prev, [key]: e.target.value }))}
+                      placeholder={placeholder}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
+                    />
+                  </div>
+                ))}
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Tagline</label>
+                  <input
+                    value={bizInfo.tagline}
+                    onChange={e => setBizInfo(prev => ({ ...prev, tagline: e.target.value }))}
+                    placeholder="Las Vegas' Premier Nail Salon..."
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex items-center gap-3">
+                <button
+                  disabled={bizSaving}
+                  onClick={async () => {
+                    setBizSaving(true); setBizMsg("");
+                    try {
+                      const res = await fetch("/api/site-config", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json", ...authHeaders() },
+                        body: JSON.stringify(bizInfo),
+                      });
+                      const data = await res.json();
+                      if (data.error) throw new Error(data.error);
+                      setBizMsg("✅ Saved! Changes are live immediately.");
+                      setTimeout(() => setBizMsg(""), 4000);
+                    } catch (e: unknown) {
+                      setBizMsg(`❌ ${(e as Error).message}`);
+                    } finally { setBizSaving(false); }
+                  }}
+                  className="bg-pink-600 text-white font-semibold px-6 py-2.5 rounded-lg hover:bg-pink-700 disabled:opacity-50 text-sm">
+                  {bizSaving ? "Saving…" : "💾 Save Changes"}
+                </button>
+                <p className="text-xs text-gray-400">Changes are stored and override the static site config immediately.</p>
+              </div>
+            </div>
+
+            {/* Current NAP preview */}
+            <div className="bg-pink-50 border border-pink-200 rounded-2xl p-5">
+              <h3 className="font-semibold text-pink-800 mb-3">📍 Current NAP (Name, Address, Phone)</h3>
+              <div className="text-sm text-pink-700 space-y-1 font-mono">
+                <p>{bizInfo.businessName}</p>
+                <p>{bizInfo.phone}</p>
+                <p>{bizInfo.address}, {bizInfo.city}, {bizInfo.state} {bizInfo.zip}</p>
+                <p>{bizInfo.email}</p>
+              </div>
+              <p className="text-xs text-pink-500 mt-3">⚠️ Keep NAP identical across Google Business Profile, Yelp, and your website for maximum local SEO benefit.</p>
+            </div>
+
+            {/* Services summary */}
+            <div className="bg-white rounded-2xl shadow-sm p-6">
+              <h3 className="font-semibold text-gray-800 mb-4">💅 Active Services (12)</h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                {[
+                  "Manicure", "Pedicure", "Spa Pedicure", "Manicure and Pedicure",
+                  "Acrylic Nails", "Dip Powder Nails", "Gel Nails", "Gel Nail Extensions",
+                  "Nail Extensions", "Nail Art", "Nail Polish", "Men's Pedicure",
+                ].map(s => (
+                  <div key={s} className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 rounded-lg px-3 py-2">
+                    <span className="text-green-500">✓</span> {s}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         )}
