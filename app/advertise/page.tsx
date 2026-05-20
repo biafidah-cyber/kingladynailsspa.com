@@ -156,13 +156,13 @@ export default function AdvertisePage() {
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Who Should Advertise Here?</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-gray-700 text-sm">
           {[
-            `Local ${siteConfig.city} beauty businesses`,
-            "Nail product brands & distributors",
-            "Salon software & booking tools",
-            "Beauty schools & training programs",
-            "Spa equipment & supply companies",
+            `Local ${siteConfig.city} ${siteConfig.category.toLowerCase()} businesses`,
+            `${siteConfig.category} product brands & suppliers`,
+            "Service software & booking tools",
+            "Training programs & certifications",
+            "Equipment & supply companies",
             "Wedding & event planners",
-            "Beauty influencer programs",
+            "Influencer & affiliate programs",
             "Local hotels & hospitality near " + siteConfig.city,
           ].map((item) => (
             <div key={item} className="flex items-center gap-2">

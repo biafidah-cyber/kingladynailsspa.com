@@ -360,7 +360,7 @@ export default function AdminPage() {
       fetch("/api/generate-image", {
         method: "POST", headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({
-          prompt: `${keyword} professional photography, blog cover image, nail salon beauty`,
+          prompt: `${keyword} professional photography, blog cover image, local business`,
           style: "photorealistic professional photography, Canon DSLR, bright clean studio",
         }),
       }).then(r => r.json()).then(img => {
@@ -839,7 +839,7 @@ export default function AdminPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">Primary Keyword</label>
                     <input value={keyword} onChange={e => setKeyword(e.target.value)}
-                      placeholder="e.g. gel nails Las Vegas"
+                      placeholder="e.g. [your service] [city]"
                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
                       onKeyDown={e => e.key === "Enter" && handleKwResearch()}
                     />
@@ -847,7 +847,7 @@ export default function AdminPage() {
                   <div>
                     <label className="text-sm font-medium text-gray-700 block mb-1">Business Context (optional)</label>
                     <textarea value={businessCtx} onChange={e => setBusinessCtx(e.target.value)}
-                      placeholder="King Lady Nails & Spa, Las Vegas nail salon…"
+                      placeholder="[Business Name], [city] [category]…"
                       rows={3}
                       className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none"
                     />
@@ -1028,14 +1028,14 @@ export default function AdminPage() {
               <textarea
                 value={bulkKeywords}
                 onChange={e => setBulkKeywords(e.target.value)}
-                placeholder={"gel nails Las Vegas\nacrylic nails Las Vegas\nnail art Las Vegas\nmanicure Henderson NV\npedicure Summerlin Las Vegas"}
+                placeholder={"[service 1] [city]\n[service 2] [city]\n[service 3] [city]\n[service 4] [nearby city]\n[service 5] [nearby city]"}
                 rows={12}
                 disabled={bulkRunning}
                 className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm font-mono focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none disabled:opacity-50 disabled:bg-gray-50"
               />
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-400">
-                  {bulkKwCount} keywords · ≈${(bulkKwCount * 0.025).toFixed(2)} OpenAI cost
+                  {bulkKwCount} keywords · ≈${(bulkKwCount * 0.025).toFixed(2)} AI cost
                 </span>
                 <button onClick={runBulk} disabled={bulkRunning || !bulkKeywords.trim()}
                   className="bg-pink-600 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-pink-700 disabled:opacity-40">
@@ -1094,7 +1094,7 @@ export default function AdminPage() {
               <div>
                 <label className="text-sm font-medium text-gray-700 block mb-1">Describe the image</label>
                 <textarea value={imgPrompt} onChange={e => setImgPrompt(e.target.value)}
-                  placeholder="A professional nail technician applying gel polish at a luxury Las Vegas nail salon, bright clean studio, pink and white decor, shallow depth of field"
+                  placeholder="A professional specialist at work in a clean, well-lit studio setting, shallow depth of field, photorealistic"
                   rows={5}
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none resize-none"
                 />
@@ -1626,7 +1626,7 @@ export default function AdminPage() {
                   <input
                     value={bizInfo.tagline}
                     onChange={e => setBizInfo(prev => ({ ...prev, tagline: e.target.value }))}
-                    placeholder="Las Vegas' Premier Nail Salon..."
+                    placeholder="[Business tagline here]…"
                     className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:ring-2 focus:ring-pink-400 focus:outline-none"
                   />
                 </div>

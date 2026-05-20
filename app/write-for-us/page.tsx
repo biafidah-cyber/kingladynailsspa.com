@@ -44,13 +44,13 @@ const guidelines = [
 
 const topics = [
   `${siteConfig.category} trends and techniques`,
-  `Nail care and maintenance tips`,
-  `Beauty product reviews`,
-  `Bridal and event nail ideas`,
-  `Local ${siteConfig.city} beauty guides`,
+  `${siteConfig.category} care and maintenance tips`,
+  `Product and tool reviews for ${siteConfig.category.toLowerCase()} professionals`,
+  `Special occasion ${siteConfig.category.toLowerCase()} ideas`,
+  `Local ${siteConfig.city} service guides`,
   `Self-care and wellness routines`,
-  `Seasonal nail design inspiration`,
-  `DIY nail art tutorials`,
+  `Seasonal ${siteConfig.category.toLowerCase()} inspiration`,
+  `DIY tips and home care tutorials`,
 ];
 
 export default function WriteForUsPage() {
