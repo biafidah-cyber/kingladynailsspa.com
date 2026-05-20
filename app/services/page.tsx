@@ -59,8 +59,8 @@ export default function ServicesPage() {
             Our {siteConfig.category} Services
           </h1>
           <p className="text-lg text-pink-100 max-w-2xl mx-auto mb-8">
-            From classic manicures to custom nail art — professional {siteConfig.category.toLowerCase()} services
-            in {siteConfig.city} at prices you&apos;ll love. Walk-ins always welcome.
+            Professional {siteConfig.category.toLowerCase()} services in {siteConfig.city} &mdash; expert staff,
+            quality results, at prices you&apos;ll love.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <a
