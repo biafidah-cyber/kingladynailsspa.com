@@ -9,7 +9,7 @@ export const revalidate = 3600; // re-generate blog index every hour
 
 export const metadata: Metadata = {
   title: `${siteConfig.category} Blog — Tips & Guides for ${siteConfig.city}`,
-  description: `Expert ${siteConfig.primaryKeyword} tips, guides, and advice. Learn about nail care, trends, and how to find the best ${siteConfig.category.toLowerCase()} in ${siteConfig.city}.`,
+  description: `Expert ${siteConfig.primaryKeyword} tips, guides, and advice. Learn about ${siteConfig.category.toLowerCase()} care, trends, and how to find the best ${siteConfig.category.toLowerCase()} in ${siteConfig.city}.`,
   alternates: { canonical: `${siteConfig.siteUrl}/blog` },
 };
 

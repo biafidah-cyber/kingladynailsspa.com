@@ -22,7 +22,7 @@ export default function Header() {
         <Link href="/" onClick={() => setOpen(false)}
           className="flex items-center gap-2 group shrink-0"
           aria-label={`${siteConfig.businessName} — home`}>
-          <span className="text-2xl" aria-hidden="true">💅</span>
+          <span className="text-2xl" aria-hidden="true">{siteConfig.logoEmoji}</span>
           <span className="font-extrabold text-gray-900 text-lg leading-tight group-hover:text-pink-600 transition-colors">
             {siteConfig.businessName}
           </span>

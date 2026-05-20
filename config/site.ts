@@ -184,8 +184,7 @@ export const siteConfig = {
   formspreeId: process.env.NEXT_PUBLIC_FORMSPREE_ID ?? "",
 
   // ── UI THEME ─────────────────────────────────────────────────────────────────
-  // Tailwind color name — change to: pink | rose | violet | blue | green | amber
-  themeColor: "pink",
+  // Tailwind color name — change to: pink | rose | violet | blue | green | amber  logoEmoji:  "💅",  themeColor: "pink",
 } as const;
 
 export type SiteConfig = typeof siteConfig;

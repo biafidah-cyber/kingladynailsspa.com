@@ -212,7 +212,7 @@ export default function HomePage() {
             Ready for the Best {siteConfig.category} Experience in {siteConfig.city}?
           </h2>
           <p className="text-pink-100 mb-8 text-lg">
-            Walk in today or call ahead. We're ready to make your nails beautiful.
+            Walk in today or call ahead. We're ready to help with all your {siteConfig.category.toLowerCase()} needs.
           </p>
           <a
             href={`tel:${siteConfig.phone.replace(/[^0-9]/g, "")}`}
